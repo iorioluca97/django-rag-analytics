@@ -1,0 +1,18 @@
+<!DOCTYPE html>
+<html lang="it">
+<head>
+    <meta charset="UTF-8">
+    <title>Home - Document Analytics</title>
+</head>
+<body>
+    <h1>Benvenuto nel sistema di Document Analytics</h1>
+    <p>Puoi caricare un PDF e ottenere un riassunto o fare una ricerca semantica.</p>
+
+    <h2>Carica un PDF</h2>
+    <form action="/upload" method="post" enctype="multipart/form-data">
+        {% csrf_token %}
+        <input type="file" name="file" accept=".pdf" required>
+        <button type="submit">Carica PDF</button>
+    </form>
+</body>
+</html>
