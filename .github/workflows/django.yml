@@ -28,5 +28,4 @@ jobs:
         poetry install
     - name: Run Tests
       run: |
-        cd rag_project
-        poetry run python manage.py test
+        poetry run python rag_project/manage.py test
