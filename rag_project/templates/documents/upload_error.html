@@ -84,45 +84,18 @@
         <h1>Document Analytics</h1>
     </header>
 
+    
+
     <main>
-        <p>Upload a PDF document to analyze its content. The system will extract text, summarize it, and provide insights.</p>
-
-        <h2>Upload Document</h2>
-        <form action="/document" method="post" enctype="multipart/form-data">
-            {% csrf_token %}
-            <input type="file" name="file" accept=".pdf" required>
-            <button type="submit">Upload PDF</button>
-        </form>
-
-        <!-- OR CHOOSE FROM THE DOCUMENT TABLE -->
-        <h2>Choose from Existing Documents</h2>
-        <p>Select a document from the list below to view its details or perform further actions.</p>
-        <table>
-            <thead>
-                <tr>
-                    <th>Document Name</th>
-                    <th>Upload Date</th>
-                    <th>Size</th>
-                </tr>
-            </thead>
-        
-            <tbody>
-                {% for document in documents %}
-                <tr>
-                    <td><a href="{{ document.file.url }}">{{ document.title }}</a></td>
-                    <td>{{ document.uploaded_at|date:"Y-m-d H:i" }}</td>
-                    <td>{{ document.size }} KB</td>
-                </tr>
-                {% empty %}
-                <tr>
-                    <td colspan="3">No documents available.</td>
-                </tr>
-                {% endfor %}   
-            </tbody>
+      <h1>Error</h1>
     </main>
 
-
+    <footer>
+        &copy; {{ year|default:"2025" }} Document Analytics
+    </footer>
 
 </body>
-
 </html>
+
+
+

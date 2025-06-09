@@ -1,5 +1,5 @@
 [tool.poetry]
-name = "django-rag-analytics"
+name = "rag-project"
 version = "0.1.0"
 description = ""
 authors = ["Iorio Luca <iorioluca97@gmail.com>"]
@@ -12,6 +12,8 @@ langchain = "^0.3.25"
 pymupdf = "^1.26.0"
 openai = "^1.84.0"
 dotenv = "^0.9.9"
+langchain-core = "^0.3.64"
+pypdf2 = "^3.0.1"
 
 
 [build-system]
