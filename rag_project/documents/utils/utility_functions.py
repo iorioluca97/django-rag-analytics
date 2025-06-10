@@ -1,22 +1,5 @@
-# Create a simple hash function to generate a hash from the document title
-import hashlib
 import io
 import PyPDF2
-
-def generate_hash(title):
-    """
-    Generate a SHA-256 hash from the document title.
-    
-    Args:
-        title (str): The title of the document.
-        
-    Returns:
-        str: The SHA-256 hash of the title.
-    """
-    if not title:
-        raise ValueError("Title cannot be empty")
-    return hashlib.sha256(title.encode('utf-8')).hexdigest()
-
 
 def extract_text_from_bytes(pdf_bytes):
     pdf_file = io.BytesIO(pdf_bytes)

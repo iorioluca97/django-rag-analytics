@@ -17,7 +17,7 @@ Progetto Django per il caricamento, l’analisi e il riassunto di documenti (PDF
 
 ## Requisiti
 
-* Python 3.10+
+* Python 3.11+
 * Django 5.2.2
 * librerie per gestione PDF (es. `PyPDF2`, `pdfminer.six`)
 * LangChain (per NLP)
@@ -73,8 +73,12 @@ poetry run python manage.py runserver
 
 * Visita `http://localhost:8000/` per accedere alla home page
 * Carica documenti PDF tramite il form di upload
+
+![alt text](readme_media/home.png)
+
 * Utilizza le funzionalità di ricerca e sintesi nei documenti caricati (da implementare)
 
+![alt text](readme_media/document_viewer.png)
 ---
 
 ## Struttura del progetto

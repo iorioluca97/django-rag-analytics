@@ -1,7 +1,11 @@
 from openai import OpenAI
 from rag_project.settings import OPENAI_API_KEY
+from .logger import logger
 
-def summarize_text(text: str, model: str = "gpt-3.5-turbo") -> str:
+def summarize_text(
+        text: str, 
+        model: str = "gpt-3.5-turbo",
+        temperature: float = .5) -> str:
     """
     Summarizes the given text using OpenAI's GPT model.
 
@@ -20,13 +24,17 @@ def summarize_text(text: str, model: str = "gpt-3.5-turbo") -> str:
     client = OpenAI(api_key=OPENAI_API_KEY)
 
     try:
+        logger.debug(f"Summarizing text using model: {model}")
+        logger.debug(f"Temperature setting: {temperature}")
+        
+        # Call the OpenAI API to summarize the text
         response = client.chat.completions.create(
             model=model,
             messages=[
                 {"role": "system", "content": "You are a helpful assistant that summarizes text."},
-                {"role": "user", "content": text}
+                {"role": "user", "content": f"Please summarize the following text: {text}"}
             ],
-            temperature=0.5
+            temperature=temperature,
         )
     except Exception as e:
         print(f"Error during OpenAI API call: {e}")
