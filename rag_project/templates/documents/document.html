@@ -4,324 +4,1032 @@
     <meta charset="UTF-8">
     <title>Document Viewer - Document Analytics</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
     <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
         :root {
-            --primary-color: #2c3e50;
-            --accent-color: #3498db;
-            --accent-hover: #2980b9;
-            --bg-gradient: linear-gradient(to right, #74ebd5, #ACB6E5);
-            --text-color: #333;
-            --light-bg: #ffffff;
-            --sidebar-bg: #f8f9fa;
-            --border-color: #e9ecef;
+            /* Palette colori moderna */
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --accent-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --accent-color: #4facfe;
+            --success-color: #43e97b;
+            --warning-color: #feca57;
+            --danger-color: #ff6b6b;
+            
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            
+            --border-light: rgba(148, 163, 184, 0.2);
+            --border-medium: rgba(148, 163, 184, 0.3);
+            
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.3s ease;
+            --transition-slow: 0.5s ease;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            
+            --border-light: rgba(203, 213, 225, 0.1);
+            --border-medium: rgba(203, 213, 225, 0.2);
         }
 
         * {
+            margin: 0;
+            padding: 0;
             box-sizing: border-box;
         }
 
         body {
-            font-family: 'Segoe UI', sans-serif;
-            margin: 0;
-            padding: 0;
-            background: var(--bg-gradient);
-            color: var(--text-color);
-            display: flex;
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: all var(--transition-normal);
             min-height: 100vh;
+            display: flex;
             flex-direction: column;
+            font-size: 14px;
         }
 
+        /* Header moderno con glassmorphism */
         header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-light);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="dark"] header {
+            background: rgba(30, 41, 59, 0.95);
+        }
+
+        .header-content {
+            max-width: 1600px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo i {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 1.8rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .theme-toggle {
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+            padding: 0.5rem;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            font-size: 1.2rem;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
             background: var(--primary-color);
             color: white;
-            padding: 1.5rem;
-            text-align: center;
-            box-shadow: 0 4px 10px rgba(0, 0, 0, 0.2);
-            animation: slideDown 0.6s ease-out;
         }
 
-        @keyframes slideDown {
-            from { transform: translateY(-100%); }
-            to { transform: translateY(0); }
-        }
-
-        @keyframes fadeIn {
-            from { opacity: 0; transform: translateY(20px); }
-            to { opacity: 1; transform: translateY(0); }
-        }
-
-        @keyframes slideInLeft {
-            from { opacity: 0; transform: translateX(-30px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        @keyframes slideInRight {
-            from { opacity: 0; transform: translateX(30px); }
-            to { opacity: 1; transform: translateX(0); }
-        }
-
-        header h1 {
-            font-size: 1.8rem;
-            margin: 0;
-            color: white;
-        }
-
-        .main-wrapper {
-            display: flex;
+        /* Layout principale */
+        main {
             flex: 1;
-            gap: 1rem;
-            padding: 1rem;
-            max-width: 1400px;
+            max-width: 1600px;
             margin: 0 auto;
+            width: 100%;
+            padding: 2rem;
+            display: grid;
+            grid-template-columns: 320px 1fr 320px;
+            gap: 2rem;
+            animation: fadeInUp 0.6s ease-out;
+        }
+
+        /* Sidebar migliorata */
+        .sidebar {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            padding: 1.5rem;
+            box-shadow: var(--shadow-md);
+            height: fit-content;
+            border: 1px solid var(--border-light);
+            transition: all var(--transition-normal);
+        }
+
+        .sidebar:hover {
+            box-shadow: var(--shadow-lg);
+            transform: translateY(-2px);
+        }
+
+        .sidebar-title {
+            font-size: 1.2rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-primary);
+            position: relative;
+            padding-bottom: 0.75rem;
+        }
+
+        .sidebar-title::after {
+            content: '';
+            position: absolute;
+            bottom: 0;
+            left: 0;
+            width: 100%;
+            height: 2px;
+            background: var(--primary-gradient);
+            border-radius: 1px;
+        }
+
+        .sidebar-title i {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        /* Info items migliorati */
+        .info-item {
+            margin-bottom: 1rem;
+            padding: 1rem;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            border-left: 4px solid var(--primary-color);
+            transition: all var(--transition-normal);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .info-item::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: 0;
+            width: 0;
+            height: 100%;
+            background: var(--primary-gradient);
+            opacity: 0.05;
+            transition: width var(--transition-normal);
+        }
+
+        .info-item:hover::before {
             width: 100%;
         }
 
-        .sidebar-left, .sidebar-right {
-            width: 280px;
-            background: var(--light-bg);
-            border-radius: 12px;
-            padding: 2rem;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-            overflow-y: auto;
-            height: fit-content;
-            max-height: calc(100vh - 200px);
-        }
-
-        .sidebar-left {
-            animation: slideInLeft 0.6s ease-out;
-        }
-
-        .sidebar-right {
-            animation: slideInRight 0.6s ease-out;
-        }
-
-        .main-content {
-            flex: 1;
-            background: var(--light-bg);
-            border-radius: 12px;
-            padding: 1.5rem;
-            box-shadow: 0 8px 20px rgba(0, 0, 0, 0.1);
-            display: flex;
-            justify-content: center;
-            align-items: center;
-            min-height: 600px;
-            animation: fadeIn 0.8s ease-out;
-        }
-
-        h1 {
-            font-size: 1.3rem;
-            margin-bottom: 1.5rem;
-            color: var(--primary-color);
-            border-bottom: 2px solid var(--accent-color);
-            padding-bottom: 0.5rem;
-        }
-
-        h2 {
-            font-size: 1.2rem;
-            margin-bottom: 1rem;
-            color: var(--primary-color);
-            display: flex;
-            align-items: center;
-            gap: 0.5rem;
-        }
-
-        .info-item {
-            margin-bottom: 1rem;
-            padding: 0.8rem;
-            background: var(--sidebar-bg);
-            border-radius: 8px;
-            border-left: 4px solid var(--accent-color);
-            transition: transform 0.2s, box-shadow 0.2s;
-        }
-
         .info-item:hover {
-            transform: translateX(5px);
-            box-shadow: 0 4px 12px rgba(0, 0, 0, 0.1);
+            transform: translateX(4px);
+            box-shadow: var(--shadow-md);
         }
 
         .info-item strong {
             color: var(--primary-color);
             display: block;
-            margin-bottom: 0.3rem;
+            margin-bottom: 0.5rem;
+            font-weight: 600;
         }
 
-        p, li {
-            font-size: 0.95rem;
-            line-height: 1.5;
-        }
-
-        ul {
-            list-style: none;
-            padding: 0;
-        }
-
-        li {
-            margin-bottom: 0.8rem;
-        }
-
-        a {
+        .info-item a {
             color: var(--accent-color);
             text-decoration: none;
-            transition: color 0.3s, transform 0.2s;
-            display: inline-flex;
+            font-weight: 500;
+            transition: color var(--transition-fast);
+        }
+
+        .info-item a:hover {
+            color: var(--primary-color);
+        }
+
+        /* Document viewer migliorato */
+        .document-viewer {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+            border: 1px solid var(--border-light);
+            display: flex;
+            flex-direction: column;
+            min-height: 700px;
+            transition: all var(--transition-normal);
+        }
+
+        .document-viewer:hover {
+            box-shadow: var(--shadow-lg);
+        }
+
+        .viewer-header {
+            padding: 1.5rem;
+            background: var(--bg-tertiary);
+            border-bottom: 1px solid var(--border-light);
+            display: flex;
+            justify-content: between;
+            align-items: center;
+        }
+
+        .viewer-header h2 {
+            font-size: 1.1rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            display: flex;
             align-items: center;
             gap: 0.5rem;
-            padding: 0.5rem;
-            border-radius: 6px;
         }
 
-        a:hover {
-            color: var(--accent-hover);
-            background: rgba(52, 152, 219, 0.1);
-            transform: translateX(3px);
+        iframe {
+            flex: 1;
+            border: none;
+            width: 100%;
+            min-height: 600px;
         }
 
+        /* Smart options migliorati */
         .smart-option {
-            display: block;
-            padding: 1rem;
-            background: var(--sidebar-bg);
-            border-radius: 8px;
-            margin-bottom: 0.8rem;
-            transition: all 0.3s ease;
-            border: 1px solid transparent;
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+            padding: 1.25rem;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            margin-bottom: 1rem;
+            transition: all var(--transition-normal);
+            cursor: pointer;
+            border: 1px solid var(--border-light);
+            text-decoration: none;
+            color: var(--text-primary);
+            position: relative;
+            overflow: hidden;
+        }
+
+        .smart-option::before {
+            content: '';
+            position: absolute;
+            top: 0;
+            left: -100%;
+            width: 100%;
+            height: 100%;
+            background: var(--primary-gradient);
+            opacity: 0.1;
+            transition: left var(--transition-normal);
+        }
+
+        .smart-option:hover::before {
+            left: 0;
         }
 
         .smart-option:hover {
-            background: var(--accent-color);
-            color: white;
-            transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(52, 152, 219, 0.3);
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-color);
         }
 
+        .smart-option i {
+            width: 48px;
+            height: 48px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            background: var(--primary-gradient);
+            color: white;
+            border-radius: var(--radius-md);
+            font-size: 1.2rem;
+            transition: transform var(--transition-normal);
+        }
+
+        .smart-option:hover i {
+            transform: scale(1.1) rotate(5deg);
+        }
+
+        .smart-option-content {
+            flex: 1;
+        }
+
+        .smart-option-content strong {
+            display: block;
+            font-weight: 600;
+            margin-bottom: 0.25rem;
+            color: var(--text-primary);
+        }
+
+        .smart-option-content small {
+            color: var(--text-secondary);
+        }
+
+        /* Back button migliorato */
         .back-button {
-            background: var(--accent-color);
-            color: white !important;
-            padding: 0.8rem 1.5rem;
-            border-radius: 8px;
+            display: inline-flex;
+            align-items: center;
+            gap: 0.75rem;
+            padding: 0.875rem 1.5rem;
+            background: var(--secondary-gradient);
+            color: white;
+            text-decoration: none;
+            border-radius: var(--radius-md);
             font-weight: 500;
-            margin-top: 1rem;
-            transition: all 0.3s ease;
+            transition: all var(--transition-normal);
+            margin-top: 1.5rem;
+            box-shadow: var(--shadow-sm);
         }
 
         .back-button:hover {
-            background: var(--accent-hover);
             transform: translateY(-2px);
-            box-shadow: 0 6px 15px rgba(52, 152, 219, 0.3);
+            box-shadow: var(--shadow-md);
         }
 
-        embed {
+        /* Modal migliorato */
+        .modal-overlay {
+            position: fixed;
+            top: 0;
+            left: 0;
             width: 100%;
-            height: 70vh;
-            border-radius: 8px;
-            box-shadow: 0 4px 15px rgba(0, 0, 0, 0.1);
+            height: 100%;
+            background: rgba(0, 0, 0, 0.6);
+            backdrop-filter: blur(10px);
+            -webkit-backdrop-filter: blur(10px);
+            z-index: 2000;
+            display: none;
+            align-items: center;
+            justify-content: center;
+            opacity: 0;
+            transition: opacity var(--transition-normal);
         }
 
-        footer {
-            background: var(--primary-color);
-            color: white;
-            text-align: center;
-            padding: 1rem;
-            font-size: 0.9rem;
-            margin-top: 2rem;
+        .modal-overlay.active {
+            display: flex;
+            opacity: 1;
         }
 
-        .icon {
+        .modal {
+            background: var(--bg-secondary);
+            border-radius: var(--radius-xl);
+            padding: 2rem;
+            width: 90%;
+            max-width: 650px;
+            max-height: 85vh;
+            overflow-y: auto;
+            box-shadow: var(--shadow-xl);
+            border: 1px solid var(--border-light);
+            position: relative;
+            animation: modalSlideIn 0.4s ease-out;
+        }
+
+        .close-modal {
+            position: absolute;
+            top: 1rem;
+            right: 1rem;
+            background: var(--bg-tertiary);
+            border: none;
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            cursor: pointer;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            color: var(--text-secondary);
+            transition: all var(--transition-normal);
             font-size: 1.2rem;
         }
 
-        @media (max-width: 768px) {
-            .main-wrapper {
-                flex-direction: column;
-                padding: 0.5rem;
+        .close-modal:hover {
+            background: var(--danger-color);
+            color: white;
+            transform: scale(1.1);
+        }
+
+        .modal h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 1.5rem;
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            color: var(--text-primary);
+        }
+
+        .modal-buttons {
+            display: flex;
+            gap: 1rem;
+            justify-content: flex-end;
+            margin-top: 2rem;
+        }
+
+        .btn {
+            padding: 0.75rem 1.5rem;
+            border-radius: var(--radius-md);
+            border: none;
+            font-weight: 500;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            display: inline-flex;
+            align-items: center;
+            gap: 0.5rem;
+            font-size: 0.95rem;
+        }
+
+        .btn-primary {
+            background: var(--primary-gradient);
+            color: white;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .btn-primary:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .btn-secondary {
+            background: var(--bg-tertiary);
+            color: var(--text-primary);
+            border: 1px solid var(--border-medium);
+        }
+
+        .btn-secondary:hover {
+            background: var(--bg-primary);
+            transform: translateY(-1px);
+        }
+
+        #summaryResult {
+            margin-top: 1.5rem;
+            padding: 1.5rem;
+            background: var(--bg-tertiary);
+            border-radius: var(--radius-md);
+            border: 1px solid var(--border-light);
+            white-space: pre-wrap;
+            line-height: 1.6;
+            color: var(--text-primary);
+        }
+
+        /* Spinner migliorato */
+        .spinner {
+            display: none;
+            width: 1em;
+            height: 1em;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-right: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .loading .spinner {
+            display: inline-block;
+        }
+
+        .loading .icon {
+            display: none;
+        }
+
+        /* Animazioni */
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        @keyframes fadeInUp {
+            from {
+                opacity: 0;
+                transform: translateY(30px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes modalSlideIn {
+            from {
+                opacity: 0;
+                transform: scale(0.9) translateY(-20px);
+            }
+            to {
+                opacity: 1;
+                transform: scale(1) translateY(0);
+            }
+        }
+
+        /* Responsive design */
+        @media (max-width: 1200px) {
+            main {
+                grid-template-columns: 280px 1fr 280px;
+                gap: 1.5rem;
+            }
+        }
+
+        @media (max-width: 1024px) {
+            main {
+                grid-template-columns: 1fr;
+                gap: 1.5rem;
             }
             
-            .sidebar-left, .sidebar-right {
-                width: 100%;
+            .sidebar {
                 order: 2;
             }
             
-            .main-content {
+            .document-viewer {
                 order: 1;
-                min-height: 400px;
             }
             
-            embed {
-                height: 50vh;
+            .sidebar:last-child {
+                order: 3;
             }
+        }
+
+        @media (max-width: 768px) {
+            main {
+                padding: 1rem;
+                gap: 1rem;
+            }
+            
+            .header-content {
+                padding: 0 1rem;
+            }
+            
+            .sidebar {
+                padding: 1rem;
+            }
+            
+            .modal {
+                margin: 1rem;
+                padding: 1.5rem;
+            }
+        }
+
+        /* Form styles */
+        .form-group {
+            margin-bottom: 1.5rem;
+        }
+
+        .form-group label {
+            display: block;
+            margin-bottom: 0.5rem;
+            font-weight: 500;
+            color: var(--text-primary);
+        }
+
+        .form-group input,
+        .form-group select,
+        .form-group textarea {
+            width: 100%;
+            padding: 0.75rem;
+            border: 1px solid var(--border-medium);
+            border-radius: var(--radius-md);
+            font-size: 0.95rem;
+            transition: all var(--transition-normal);
+            background-color: var(--bg-tertiary);
+            color: var(--text-primary);
+            font-family: inherit;
+        }
+
+        .form-group input:focus,
+        .form-group select:focus,
+        .form-group textarea:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+            background-color: var(--bg-secondary);
+        }
+
+        .form-group textarea {
+            resize: vertical;
+            min-height: 80px;
+        }
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Focus states migliorati */
+        *:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        button:focus,
+        .btn:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
         }
     </style>
 </head>
-<body>
-
+<body data-theme="light">
     <header>
-        <h1>📄 Document Viewer - Document Analytics</h1>
+        <div class="header-content">
+            <a href="/" class="logo">
+                <i class="fas fa-file-alt"></i>
+                Document Viewer
+            </a>
+            <div class="header-actions">
+                <button class="theme-toggle" id="theme-toggle" title="Cambia tema">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
     </header>
 
-    <div class="main-wrapper">
-        <div class="sidebar-left">
-            <h1><span class="icon">📋</span> Informazioni Documento</h1>
-            
+    <main>
+        <aside class="sidebar">
+            <h2 class="sidebar-title">
+                <i class="fas fa-info-circle"></i>
+                Info Documento
+            </h2>
             <div class="info-item">
-                <strong>📝 Titolo:</strong>
-                {{ document.title }}
+                <strong><i class="fas fa-heading"></i> Titolo:</strong>
+                <span>{{ document.title }}</span>
             </div>
-            
             <div class="info-item">
-                <strong>📎 File:</strong>
-                <a href="{{ document.file.url }}">{{ document.file.name }}</a>
+                <strong><i class="fas fa-paperclip"></i> File:</strong>
+                <a href="{{ document.file.url }}" target="_blank" rel="noopener noreferrer">
+                    {{ document.file.name }}
+                </a>
             </div>
-            
             <div class="info-item">
-                <strong>📅 Caricato il:</strong>
-                {{ document.uploaded_at|date:"d M Y H:i" }}
+                <strong><i class="fas fa-calendar-alt"></i> Caricato il:</strong>
+                <span>{{ document.uploaded_at|date:"d M Y H:i" }}</span>
             </div>
-            
             <div class="info-item">
-                <strong>📏 Dimensione:</strong>
-                {{ document.file.size|filesizeformat }}
+                <strong><i class="fas fa-weight-hanging"></i> Dimensione:</strong>
+                <span>{{ document.file.size|filesizeformat }}</span>
             </div>
-
             <a href="/" class="back-button">
-                <span class="icon">🏠</span> Torna alla Home
+                <i class="fas fa-home"></i>
+                Torna alla Home
             </a>
-        </div>
+        </aside>
 
-        <div class="main-content">
-            <embed src="{% url 'serve_pdf' document.id %}" type="application/pdf">
-        </div>
+        <section class="document-viewer" aria-labelledby="viewer-heading">
+            <div class="viewer-header">
+                <h2 id="viewer-heading">
+                    <i class="fas fa-file-pdf"></i>
+                    Visualizzatore PDF
+                </h2>
+            </div>
+            <iframe src="{% url 'serve_pdf' document.id %}" 
+                    title="Visualizzatore del documento PDF: {{ document.title }}">
+            </iframe>
+        </section>
 
-        <div class="sidebar-right">
-            <h2><span class="icon">🚀</span> Opzioni Intelligenti</h2>
+        <aside class="sidebar">
+            <h2 class="sidebar-title">
+                <i class="fas fa-rocket"></i>
+                Opzioni Intelligenti
+            </h2>
+            <nav aria-label="Opzioni di analisi del documento">
+                <button class="smart-option" id="open-summary-modal-btn">
+                    <i class="fas fa-file-text"></i>
+                    <div class="smart-option-content">
+                        <strong>Genera Riassunto</strong>
+                        <small>Crea un riassunto automatico del documento</small>
+                    </div>
+                </button>
+                <a href="/analytics/{{ document.id }}" class="smart-option">
+                    <i class="fas fa-chart-line"></i>
+                    <div class="smart-option-content">
+                        <strong>Analizza Documento</strong>
+                        <small>Analisi avanzata e indicizzazione completa</small>
+                    </div>
+                </a>
+                <a href="/chunking/{{ document.id }}" class="smart-option">
+                    <i class="fas fa-puzzle-piece"></i>
+                    <div class="smart-option-content">
+                        <strong>Scarica Chunks</strong>
+                        <small>Suddivisione intelligente del documento</small>
+                    </div>
+                </a>
+            </nav>
+        </aside>
+    </main>
+
+    <!-- Modal per riassunto -->
+    <div class="modal-overlay" id="summaryModal">
+        <div class="modal" role="dialog" aria-labelledby="summaryModalTitle" aria-modal="true">
+            <button class="close-modal" id="close-summary-modal-btn" aria-label="Chiudi modale">
+                <i class="fas fa-times"></i>
+            </button>
             
-            <a href="/chunking/{{ document.id }}" class="smart-option">
-                <span class="icon">📦</span>
-                <div>
-                    <strong>Scarica Chunks</strong>
-                    <br><small>Suddivisione del documento in parti</small>
-                </div>
-            </a>
+            <div id="summary-form-container">
+                <h2 id="summaryModalTitle">
+                    <i class="fas fa-cog"></i>
+                    Configurazione Riassunto
+                </h2>
+                <form id="summaryForm" method="POST" action="/summarize/{{ document.id }}/">
+                    {% csrf_token %}
+
+                    <div class="form-group">
+                        <label for="model_type">Modello LLM:</label>
+                        <select id="model_type" name="model_type" required>
+                            <option value="gpt-4">GPT-4</option>
+                            <option value="gpt-4o">GPT-4o</option>
+                            <option value="gpt-3.5-turbo">GPT-3.5 Turbo</option>
+                        </select>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="temperature">Temperatura:</label>
+                        <!-- Add a  range bar for temperature -->
+                        <input type="range" id="temperature" name="temperature" min="0" max="1" step="0.01" value="0.5" 
+                               oninput="this.nextElementSibling.value = this.value">
+                        <output>0.5</output>
+                    </div>
+
+                    <div class="form-group">
+                        <label for="summary_type">Tipo di riassunto:</label>
+                        <select id="summary_type" name="summary_type" required>
+                            <option value="brief">Breve (2-3 paragrafi)</option>
+                            <option value="detailed">Dettagliato (1 pagina)</option>
+                            <option value="bullet_points">Punti chiave</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="language">Lingua del riassunto:</label>
+                        <select id="language" name="language">
+                            <option value="italian">Italiano</option>
+                            <option value="english">English</option>
+                            <option value="french">Français</option>
+                            <option value="spanish">Español</option>
+                        </select>
+                    </div>
+                    
+                    <div class="form-group">
+                        <label for="focus_areas">Aree di focus (opzionale):</label>
+                        <textarea id="focus_areas" name="focus_areas" rows="3" 
+                                  placeholder="Es: conclusioni, dati statistici, raccomandazioni..."></textarea>
+                    </div>
+                    
+                    <div class="modal-buttons">
+                        <button type="button" class="btn btn-secondary" id="cancel-summary-btn">
+                            <i class="fas fa-times icon"></i>
+                            <span class="spinner"></span>
+                            Annulla
+                        </button>
+                        <button type="submit" class="btn btn-primary">
+                            <i class="fas fa-rocket icon"></i>
+                            <span class="spinner"></span>
+                            Genera Riassunto
+                        </button>
+                    </div>
+                </form>
+            </div>
             
-            <a href="/summarize/{{ document.id }}" class="smart-option">
-                <span class="icon">📄</span>
-                <div>
-                    <strong>Genera Riassunto</strong>
-                    <br><small>Riassunto automatico del contenuto</small>
+            <div id="summary-result-container" style="display:none;">
+                <h2>
+                    <i class="fas fa-check-circle"></i>
+                    Riassunto Generato
+                </h2>
+                <div id="summaryResult"></div>
+                <div class="modal-buttons">
+                    <button type="button" class="btn btn-primary" id="close-result-btn">
+                        <i class="fas fa-times"></i>
+                        Chiudi
+                    </button>
+                    <button type="button" class="btn btn-primary" id="copy-summary-btn">
+                        <i class="fas fa-copy"></i>
+                        Copia Riassunto
+                    </button>
+                    <button type="button" class="btn btn-primary" id="download-summary-btn">
+                        <i class="fas fa-download"></i>
+                        Scarica Riassunto
+                    </button>
                 </div>
-            </a>
-            
-            <a href="/indexing/{{ document.id }}" class="smart-option">
-                <span class="icon">🔍</span>
-                <div>
-                    <strong>Analizza Documento</strong>
-                    <br><small>Analisi avanzata e indicizzazione</small>
-                </div>
-            </a>
+            </div>
         </div>
     </div>
 
-    <footer>
-        &copy; {{ year|default:"2025" }} Document Analytics. Tutti i diritti riservati.
-    </footer>
+    <script>
+        document.addEventListener('DOMContentLoaded', function() {
+            // Gestione tema
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIcon = themeToggle.querySelector('i');
+            
+            // Carica tema salvato
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
 
+            function updateThemeIcon(theme) {
+                themeIcon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = document.body.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                document.body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateThemeIcon(newTheme);
+            });
+
+            // Gestione modale
+            const summaryModal = document.getElementById('summaryModal');
+            const openModalBtn = document.getElementById('open-summary-modal-btn');
+            const closeModalBtns = [
+                document.getElementById('close-summary-modal-btn'),
+                document.getElementById('cancel-summary-btn'),
+                document.getElementById('close-result-btn')
+            ];
+            const summaryFormContainer = document.getElementById('summary-form-container');
+            const summaryResultContainer = document.getElementById('summary-result-container');
+
+            function openModal() {
+                summaryModal.classList.add('active');
+                document.body.style.overflow = 'hidden';
+                summaryFormContainer.style.display = 'block';
+                summaryResultContainer.style.display = 'none';
+            }
+
+            function closeModal() {
+                summaryModal.classList.remove('active');
+                document.body.style.overflow = 'auto';
+            }
+
+            openModalBtn.addEventListener('click', openModal);
+            closeModalBtns.forEach(btn => {
+                if (btn) btn.addEventListener('click', closeModal);
+            });
+
+            summaryModal.addEventListener('click', function(e) {
+                if (e.target === summaryModal) closeModal();
+            });
+
+            document.addEventListener('keydown', function(e) {
+                if (e.key === 'Escape' && summaryModal.classList.contains('active')) {
+                    closeModal();
+                }
+            });
+
+            // Gestione form riassunto
+            const summaryForm = document.getElementById('summaryForm');
+            if (summaryForm) {
+                summaryForm.addEventListener('submit', async function(e) {
+                    e.preventDefault();
+
+                    const submitButton = this.querySelector('button[type="submit"]');
+                    const originalButtonHtml = submitButton.innerHTML;
+                    
+                    // Stato loading
+                    submitButton.disabled = true;
+                    submitButton.classList.add('loading');
+                    submitButton.innerHTML = '<span class="spinner"></span> Generazione...';
+                    
+                    const formData = new FormData(this);
+                    const csrfToken = this.querySelector('input[name="csrfmiddlewaretoken"]')?.value;
+
+                    try {
+                        const response = await fetch(this.action, {
+                            method: 'POST',
+                            body: formData,
+                            headers: {
+                                'X-CSRFToken': csrfToken,
+                                'X-Requested-With': 'XMLHttpRequest'
+                            }
+                        });
+
+                        if (!response.ok) {
+                            const errorText = await response.text();
+                            throw new Error('Errore del server: ' + response.status);
+                        }
+                        
+                        const contentType = response.headers.get('content-type');
+                        let result;
+                        
+                        if (contentType && contentType.includes('application/json')) {
+                            result = await response.json();
+                            document.getElementById('summaryResult').textContent = result.summary;
+                        } else {
+                            // Il backend restituisce testo semplice
+                            const summaryText = await response.text();
+                            document.getElementById('summaryResult').textContent = summaryText;
+                        }
+                        summaryFormContainer.style.display = 'none';
+                        summaryResultContainer.style.display = 'block';
+
+                    } catch (error) {
+                        alert('Errore durante la generazione del riassunto: ' + error.message);
+                    } finally {
+                        // Ripristina pulsante
+                        submitButton.disabled = false;
+                        submitButton.classList.remove('loading');
+                        submitButton.innerHTML = originalButtonHtml;
+                    }
+                });
+            }
+
+            // Animazioni di hover per le card
+            const infoItems = document.querySelectorAll('.info-item');
+            infoItems.forEach(item => {
+                item.addEventListener('mouseenter', function() {
+                    this.style.transform = 'translateX(8px) scale(1.02)';
+                });
+                
+                item.addEventListener('mouseleave', function() {
+                    this.style.transform = 'translateX(0) scale(1)';
+                });
+            });
+
+            // Smooth scroll per i link interni
+            document.querySelectorAll('a[href^="#"]').forEach(anchor => {
+                anchor.addEventListener('click', function (e) {
+                    e.preventDefault();
+                    const target = document.querySelector(this.getAttribute('href'));
+                    if (target) {
+                        target.scrollIntoView({
+                            behavior: 'smooth',
+                            block: 'start'
+                        });
+                    }
+                });
+            });
+        });
+        // Funzione per copiare il riassunto negli appunti
+        document.getElementById('copy-summary-btn').addEventListener('click', function() {
+            const summaryText = document.getElementById('summaryResult').textContent;
+            navigator.clipboard.writeText(summaryText).then(() => {
+                
+                        }).catch(err => {
+                console.error('Errore durante la copia negli appunti: ', err);
+            });
+        });
+        // Funzione per scaricare il riassunto come file di testo
+        document.getElementById('download-summary-btn').addEventListener('click', function() {
+            const summaryText = document.getElementById('summaryResult').textContent;
+            const blob = new Blob([summaryText], { type: 'text/plain' });
+            const url = URL.createObjectURL(blob);
+            const a = document.createElement('a');
+            a.href = url;
+            a.download = 'riassunto.txt';
+            document.body.appendChild(a);
+            a.click();
+            document.body.removeChild(a);
+            URL.revokeObjectURL(url);
+        });
+    </script>
 </body>
 </html>

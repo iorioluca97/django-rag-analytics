@@ -1,11 +1,18 @@
+import time
 from django.shortcuts import render
-from .models import Document
+from .models import Document, DocumentImage, Entity
 from django.shortcuts import redirect
 from .utils.utility_functions import extract_text_from_bytes
 from .utils.logger import logger
-from django.http import HttpResponse
+from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
 import json
+from django.core.files.base import ContentFile
+from .utils.text_extraction import DocumentExtractor
+import os
+from django.views.decorators.csrf import csrf_exempt
+from dotenv import set_key, load_dotenv
+from .utils.text_summarization import summarize_text
 
 def home(request):
     # Fetch all documents to display on the home page
@@ -37,19 +44,18 @@ def upload_error(request):
     return render(request, 'documents/upload_error.html')
 
 def chunk_document(request, doc_id):    
-    from .utils.text_extraction import TextExtractor
-
-    te = TextExtractor(chunk_size=1000, chunk_overlap=200)
     doc = Document.objects.get(id=doc_id)
-    logger.debug(f"Processing document with ID: {doc.id}, Title: {doc.title}, Url: {doc.file.url}")  # Debugging output
     if not doc.file:
         return render(request, 'documents/upload_error.html', {'error': 'Document file is missing.'})
+    
+    logger.debug(f"Processing document with ID: {doc.id}, Title: {doc.title}, Url: {doc.file.url}")  # Debugging output
+    document_extractor = DocumentExtractor(doc.raw_bytes)
     title_no_ext = doc.title.split('.pdf')[0] if doc.title else 'document'
     try:
-        text = extract_text_from_bytes(doc.raw_bytes)
-        documents = te.extract_text(text)
+        documents = document_extractor.extract_text()
         logger.debug(f"Extracted {len(documents)} chunks from the document.")
-        logger.debug(documents)
+
+
         complete_result = {
             'metadata': {
                 'doc_id': doc.id,
@@ -71,7 +77,7 @@ def chunk_document(request, doc_id):
         
         # Create an HTTP response with the JSON data
         response = HttpResponse(json_string, content_type='text/plain')
-        response['Content-Disposition'] = f'attachment; filename="{title_no_ext}_summary.json"'
+        response['Content-Disposition'] = f'attachment; filename="{title_no_ext}_chunks.json"'
         return response
 
 
@@ -79,7 +85,18 @@ def chunk_document(request, doc_id):
         return render(request, 'documents/upload_error.html', {'error': str(e)})
 
 def summarize_document(request, doc_id):
-    from .utils.text_summarization import summarize_text
+    llm_settings = {
+        "model" : request.POST.get('model_type'),
+        "language": request.POST.get('language'),
+        "temperature": float(request.POST.get('temperature', 0.5)),  # valore default 0.5
+        "length": request.POST.get('length', 'short'),  # valore default 'short'
+        "focus_areas": request.POST.get('focus_areas', None),
+        # "style": request.POST.get('style'),
+        # "include_quotes": True if 'include_quotes' in request.POST else False,
+        # "bullet_points": True if 'bullet_points' in request.POST else False,
+        # "include_stats": True if 'include_stats' in request.POST else False
+    }
+    
     doc = Document.objects.get(id=doc_id)
     title_no_ext = doc.title.split('.pdf')[0] if doc.title else 'document'
     if not doc.file:
@@ -87,7 +104,9 @@ def summarize_document(request, doc_id):
 
     try:
         text = extract_text_from_bytes(doc.raw_bytes)
-        summary = summarize_text(text)
+        summary = summarize_text(text, llm_settings)
+
+        logger.debug(f"Generated summary: {summary[:1000]}...")  # Log the first 1000 characters of the summary
 
         response = HttpResponse(summary, content_type='text/plain')
         response['Content-Disposition'] = f'attachment; filename="{title_no_ext}_summary.txt"'
@@ -115,18 +134,108 @@ def serve_pdf(request, document_id):
     
     return response
 
-def index_document(request, doc_id):
-    """
-    Placeholder for the index_document view.
-    This function will handle the indexing of the document.
-    """
-    #TODO: Implement the indexing logic
-    # from .utils.text_embedding import MongoDb
-    # mongodb = MongoDb(collection_name=doc.title.replace(' ', '_').lower())
-    # mongodb.index_chunks(documents, doc)
+def analyze_document(request, doc_id):
+    doc = Document.objects.get(id=doc_id)
+    if not doc.file:
+        return render(request, 'documents/upload_error.html', {'error': 'Document file is missing.'})
 
-    # return render(request, 'documents/chunk_success.html', {
-    #     'doc_id': doc.id,
-    #     'documents': documents
-    # })
-    return redirect('document_detail', doc_id=doc_id)
+    logger.debug(f"Processing document with ID: {doc.id}, Title: {doc.title}, Url: {doc.file.url}")
+
+    doc_extractor = DocumentExtractor(doc.raw_bytes)
+
+    try:
+        start_time = time.time()
+        toc = doc_extractor.extract_toc()
+        chunks = doc_extractor.extract_text()
+        full_text = " ".join(chunk.page_content for chunk in chunks)
+        
+
+        # Altri metadati
+        language = doc_extractor.detect_language(full_text)
+        reading_time = doc_extractor.estimate_reading_time(full_text)
+        page_numbers = doc_extractor.page_count
+        words_count = doc_extractor.get_words_count(full_text)
+        images_extracted = doc_extractor.extract_images()
+
+        for i, image in enumerate(images_extracted, start=1):
+            image_name = f"image_{i}_page_{image['page_number']}.png"
+            DocumentImage.objects.create(
+                image=ContentFile(image["base64_data"], name=image_name),
+                document=doc,
+                page_number=image['page_number']
+            )
+
+        end_time = time.time()
+        elapsed_time = round(end_time - start_time, 2)
+
+         #TODO: Implement the NER extraction logic
+        # text_extracted = doc_extractor.extract_text(text)
+        # entities = doc_extractor.extract_entities(text_extracted)
+
+        # for ent in entities:
+        #     Entity.objects.create(
+        #         document=doc,
+        #         text=ent["text"],
+        #         label=ent["label"],
+        #         start_pos=ent["start"],
+        #         end_pos=ent["end"]
+        #     )
+
+        #TODO: Implement the MongoDB indexing logic
+        # from .utils.text_embedding import MongoDb
+        # mongodb = MongoDb(collection_name=doc.title.replace(' ', '_').lower())
+        # mongodb.index_chunks(documents, doc)
+        logger.debug(type(images_extracted))
+        logger.debug(len(images_extracted))
+
+        # Log the time taken for text extraction
+        end_time = time.time()
+        elapsed_time = end_time - start_time
+
+        return render(request, 'documents/analytics.html', {
+            'document': doc, 
+            'toc': toc, 
+            'images': images_extracted,
+            'page_numbers': page_numbers,
+            'images_count': len(images_extracted),
+            'words_count': words_count,
+            'elapsed_time': round(elapsed_time, 2),
+            'reading_time': reading_time,
+            'language': language.upper(),
+
+        })
+    except Exception as e:
+        return render(request, 'documents/upload_error.html', {'error': str(e)})
+        
+def chat(request, doc_id):
+    """
+    Placeholder for the chat view.
+    This function will handle the chat functionality.
+    """
+    return render(request, 'documents/chat.html', {
+        'doc_id': doc_id,
+        'document': Document.objects.get(id=doc_id)
+    })
+
+
+@csrf_exempt
+def save_env_keys(request):
+    if request.method == 'POST':
+        openai_key = request.POST.get('openai_key')
+        mongo_uri = request.POST.get('mongo_uri')
+
+        # Clear the environment variables in memory
+        os.environ.pop('OPENAI_API_KEY', None)
+        os.environ.pop('MONGO_URI', None)
+
+        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
+        load_dotenv(dotenv_path=env_path)
+
+        if openai_key:
+            set_key(env_path, 'OPENAI_API_KEY', openai_key)
+
+        if mongo_uri:
+            set_key(env_path, 'MONGO_URI', mongo_uri)
+
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)

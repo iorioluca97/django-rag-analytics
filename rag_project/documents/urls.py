@@ -18,7 +18,12 @@ urlpatterns = [
     path('summarize/<int:doc_id>/', views.summarize_document, name='summarize_document'),
     # URL per servire il PDF
     path('<int:document_id>/pdf/', views.serve_pdf, name='serve_pdf'),
-    # URL per indicizzare i documenti
-    path('indexing/<int:doc_id>/', views.index_document, name='index_document'),
+    # URL per la chat
+    path('chat/<int:doc_id>/', views.chat, name='chat'),
+    # URL per l analisi dei documenti
+    path('analytics/<int:doc_id>/', views.analyze_document, name='analyze_document'),
+    
+    path('save-env-keys/', views.save_env_keys, name='save_env_keys'),
+
 
 ]

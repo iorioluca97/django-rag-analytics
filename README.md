@@ -8,10 +8,10 @@ Progetto Django per il caricamento, l’analisi e il riassunto di documenti (PDF
 
 * Upload di documenti PDF tramite interfaccia web
 * Estrazione testo dai documenti caricati
-* Generazione di embeddings per ricerca semantica (integrazione con LangChain/Pinecone/Chroma)
+* Generazione di embeddings per ricerca semantica (integrazione con LangChain/MongoDB)
 * Funzionalità di ricerca semantica nei documenti
-* Riassunti automatici e highlight di estratti chiave
-* Architettura ispirata a progetti come OpenContracts
+* Estrazione di immagini ed insights
+* Riassunti automatici personalizzabili e highlight di estratti chiave
 
 ---
 
@@ -74,11 +74,16 @@ poetry run python manage.py runserver
 * Visita `http://localhost:8000/` per accedere alla home page
 * Carica documenti PDF tramite il form di upload
 
-![alt text](readme_media/home.png)
+![alt text](./readme_media/home.png)
 
 * Utilizza le funzionalità di ricerca e sintesi nei documenti caricati (da implementare)
 
-![alt text](readme_media/document_viewer.png)
+![alt text](./readme_media/document.png)
+
+* Utilizza l'analisi documentale per estrarre maggiori informazioni, immagini, table of content e molto altro!
+
+![alt text](./readme_media/analytics.png)
+
 ---
 
 ## Struttura del progetto
@@ -104,10 +109,10 @@ rag_project/
 
 ## Prossimi sviluppi
 
-* Integrazione con LangChain per estrazione testo e generazione embeddings
-* Connessione a database vettoriale Pinecone o Chroma per ricerca semantica
-* Funzioni di riassunto automatico e highlight interattivi
-* Interfaccia utente più avanzata con annotazioni e visualizzazioni
+* Connessione a database vettoriale MongoDB per ricerca semantica
+* Chat interattiva RAG based
+* Funzioni di highlight interattivi
+* Estrazione NER
 
 ---
 
