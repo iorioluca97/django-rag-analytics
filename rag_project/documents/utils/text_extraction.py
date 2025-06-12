@@ -1,8 +1,11 @@
 
+import os
 from langchain_core.documents import Document
 from langchain_text_splitters import RecursiveCharacterTextSplitter
 from typing import Any, Dict, List, Optional
 import fitz
+from openai import OpenAI
+import yaml
 from rag_project.settings import OPENAI_API_KEY
 from .logger import logger
 from PIL import Image
@@ -99,88 +102,46 @@ class DocumentExtractor:
         toc = self.fitz_doc.get_toc()
         if toc:
             logger.debug(f" TOC {toc}.")
-            return toc
+            return self._toc_list_to_json(toc)
 
-        headings = self._extract_headings_heuristic(self.fitz_doc)
-        structured_toc = self._generate_structured_toc(headings)
-        return self._validate_with_llm(structured_toc)
+        toc_text, toc_page_num = self._extract_possible_starting_toc(self.fitz_doc)
+        logger.debug(f"Possible TOC at page: {toc_page_num}")
+        return self._validate_with_llm(toc_text, toc_page_num)
 
-    def _extract_headings_heuristic(self, doc):
-        font_stats = []
-        raw_headings = []
+    def _extract_possible_starting_toc(self, doc):
+        toc_page_number = None
+        toc_text = None
 
         # Start from the second page to avoid the first page which is often a cover
-        for page_num in range(1, len(doc)):
-            page = doc[page_num]
-            blocks = page.get_text("dict")["blocks"]
-            for block in blocks:
-                if "lines" in block:
-                    for line in block["lines"]:
-                        for span in line["spans"]:
-                            size = round(span["size"], 1)
-                            font_stats.append(size)
-                            text = span["text"].strip()
+        for page_num in range(0, 10):
+            # Search for a common start of TOC
+            page = doc.load_page(page_num)
+            text = page.get_text("text")
+            if not text.strip():
+                continue
+            lines = text.splitlines()
+            for line in lines:
+                if re.match(r'^(Indice|Sommario|Table of Contents|Capitolo)\s*$', line, re.IGNORECASE):
+                    toc_page_number = page_num
+                    logger.debug(f"Found possible TOC start on page {toc_page_number + 1}: {line.strip()}")
+                    break
+            if toc_page_number is not None:
+                break
+        if toc_page_number is None:
+            logger.warning("No starting point for TOC found in the first 10 pages.")
+            return None
+        
+        # Extract text from the TOC page
+        toc_page = doc.load_page(toc_page_number)
+        toc_text = toc_page.get_text("text") 
 
-                            if not text or len(text) < 4:
-                                continue
+        return toc_text, toc_page_number
+            
+    def _toc_list_to_json(self, toc_list):
+        return [{"level": level, "text": text.strip(), "page": page} for level, text, page in toc_list]
 
-                            is_bold = "bold" in span["font"].lower()
-                            is_italic = "italic" in span["font"].lower() or "oblique" in span["font"].lower()
-                            is_caps = text.isupper()
-                            is_title_like = bool(re.match(r'^[A-Z].*', text)) and len(text.split()) < 12
-                            # Determina la dimensione del font più usata (probabile corpo del testo)
-                            common_font_size = Counter(font_stats).most_common(1)[0][0]
 
-                            if self._is_valid_heading(text) and (is_bold or is_caps or size > common_font_size) and not is_italic:
-                                raw_headings.append({
-                                    "text": text,
-                                    "page": page.number + 1,
-                                    "size": size,
-                                    "font": span["font"],
-                                    "is_bold": is_bold,
-                                    "is_italic": is_italic,
-                                    "is_caps": is_caps,
-                                    "is_title_like": is_title_like
-                                })
-
-        # Filtra titoli basati su euristica migliorafta
-        headings = [
-            h for h in raw_headings
-            if (h["size"] > common_font_size or (h["is_bold"] and h["is_title_like"])) and not h["is_italic"]
-        ]
-        return headings
-
-    def _is_valid_heading(self, text):
-        if len(text.split()) > 12:
-            return False
-        if re.search(r'(www\.|http[s]?:)', text.lower()):
-            return False
-        if re.match(r'^[a-z]', text.strip()):
-            return False
-        return True
-
-    def _generate_structured_toc(self, headings):
-        if not headings:
-            return []
-
-        # Ordina per pagina e dimensione del font
-        headings_sorted = sorted(headings, key=lambda h: (h["page"], -h["size"]))
-
-        # Determina gerarchie di font (1-3 livelli) in base a dimensioni uniche
-        unique_sizes = sorted({h["size"] for h in headings_sorted}, reverse=True)
-        size_to_level = {size: idx + 1 for idx, size in enumerate(unique_sizes[:3])}
-
-        toc = []
-        for heading in headings_sorted:
-            level = size_to_level.get(heading["size"], 3)
-            toc.append({
-                "level": level,
-                "text": heading["text"],
-                "page": heading["page"]
-            })
-        return toc
-    
-    def _validate_with_llm(self, toc: List[Dict[str, Any]]) -> List[Dict[str, Any]]:
+    def _validate_with_llm(self, toc_text: str, toc_page_num: int) -> List[Dict[str, Any]]:
         """
         Validates the generated Table of Contents (TOC) with an LLM.
         
@@ -190,59 +151,267 @@ class DocumentExtractor:
         Returns:
             List[Dict[str, Any]]: The validated TOC.
         """
-        from openai import OpenAI
-        client = OpenAI(api_key=OPENAI_API_KEY)
-        try:
-            logger.debug(f"Validating TOC with LLM: {toc}")
-            response = client.chat.completions.create(
-                model="gpt-4o",
-                messages=[
+        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+
+        prompt_config = {
+            "task": "validate_table_of_contents",
+            "output_format": "json_list",
+            "output_instructions": [
+                "Only return the cleaned Table of Contents as a list of dictionaries.",
+                "Do not include any explanatory text, comments, or headings."
+            ],
+            "rules": [
+                "Remove duplicated entries even if they have different levels.",
+                "Consider headers duplicated if their text is nearly identical.",
+                "Ensure ordering and page numbers are preserved.",
+                "Do not generate new headers unless absolutely necessary."
+            ],
+            "example_input": [
+                {"level": 1, "text": "First Header", "page": 2},
+                {"level": 2, "text": "First Header", "page": 3}
+            ],
+            "expected_output": [
+                {"level": 1, "text": "First Header", "page": 2}
+            ],
+            "toc_page_num": toc_page_num if toc_page_num is not None else "Not found",  # Use 0 if no TOC page found
+            "toc_text": toc_text.strip() if toc_text else "",
+
+        }
+
+
+        yaml_prompt = yaml.dump(prompt_config, sort_keys=False, default_flow_style=False)
+
+        full_prompt = (
+            "You are a helpful assistant that validates and cleans Table of Contents.\n"
+            "You are provided both a structured TOC and images of the document pages where may be the TOC is located.\n"
+            "Use both sources to ensure correctness.\n"
+            "Please follow the instructions in the following YAML configuration:\n"
+            f"```yaml\n{yaml_prompt}```"
+        )
+
+
+        if toc_page_num:
+            page_ranges_to_search = range(toc_page_num-1, min(toc_page_num + 4, self.page_count))
+        else:
+            page_ranges_to_search = range(0, min(5, self.page_count))
+        toc_images = self.get_first_n_pages_as_base64_images(n=len(page_ranges_to_search))
+
+        prompt_config["toc_images"] = toc_images  # toc_images is the list of base64 images
+
+        user_content = self.build_multimodal_message(full_prompt, toc_images)
+
+        logger.debug(f"User content for LLM: {full_prompt}")
+
+        response = client.chat.completions.create(
+            model="gpt-4o",
+            messages=[
                 {"role": "system", "content": "You are a helpful assistant that validates Table of Contents."},
-                {"role": "user", "content": f"""
-                Answer only with the validated Table of Contents without any additional text.
-                Remove any duplicated entries.
-                If the TOC is not correct, fix it.
-                 
-                For example, if the TOC contains 2 headers very similar, like:
-                [{{'level': 1, 'text': 'First Header', 'page': 2}},
-                ...
-                {{'level': 2, 'text': 'First Header', 'page': 3}}]
-                you should remove the second one, because it is a duplicate, indipendent of the level.
-                 
-                This is the output desired by the user:
+                {"role": "user", "content": user_content}
                 
-                [{{'level': 1, 'text': 'First Header', 'page': 2}},...]
+            ],
+            temperature=0
+        )
 
-                This is the Table of Contents that may be incorrect:
-                {toc}
-                """}
-                ],
-                temperature=0
-            )
+        # Parsing the string result to Python list (assuming model respects the format)
+        cleaned_toc = response.choices[0].message.content.strip()        
 
-            validated_raw = response.choices[0].message.content
-            logger.debug(f"Raw Validated TOC: {validated_raw}")
+        # Strip markdown ```json code block markers
+        # Remove code block markers
+        cleaned = re.sub(r"^```json\s*|\s*```$", "", cleaned_toc.strip())
 
-            # Strip markdown ```json code block markers
-            # Remove code block markers
-            cleaned = re.sub(r"^```json\s*|\s*```$", "", validated_raw.strip())
+        # Use `ast.literal_eval` to safely evaluate Python-style dict/list strings
+        try:
+            # Convert the cleaned Python-style list of dicts to actual Python objects
+            toc_python = ast.literal_eval(cleaned)
+            # Now serialize to proper JSON
+            validated_toc = json.loads(json.dumps(toc_python))
+        except (ValueError, SyntaxError) as e:
+            logger.error(f"Error converting TOC to valid JSON: {e}")
+            raise
 
-            # Use `ast.literal_eval` to safely evaluate Python-style dict/list strings
-            try:
-                # Convert the cleaned Python-style list of dicts to actual Python objects
-                toc_python = ast.literal_eval(cleaned)
-                # Now serialize to proper JSON
-                validated_toc = json.loads(json.dumps(toc_python))
-            except (ValueError, SyntaxError) as e:
-                logger.error(f"Error converting TOC to valid JSON: {e}")
-                raise
+        logger.debug(f"Validated TOC: {validated_toc}")
+        return validated_toc
 
-            logger.debug(f"Validated TOC: {validated_toc}")
-            return validated_toc
 
-        except Exception as e:
-            logger.error(f"Error validating TOC with LLM: {str(e)}")
-            return toc
+
+    def get_first_n_pages_as_base64_images(self, n: int = 5) -> list:
+        images_base64 = []
+
+        for page_number in range(min(n, len(self.fitz_doc))):
+            page = self.fitz_doc.load_page(page_number)
+            pix = page.get_pixmap(dpi=150)  
+
+            image_bytes = pix.tobytes("png")
+            base64_image = base64.b64encode(image_bytes).decode("utf-8")
+            images_base64.append(f"data:image/png;base64,{base64_image}")
+
+        return images_base64
+
+
+
+    def build_multimodal_message(self, text: str, base64_images: List[str]) -> List[dict]:
+        content = [{"type": "text", "text": text}]
+        
+        for base64_image in base64_images:
+            content.append({
+                "type": "image_url",
+                "image_url": {"url": base64_image}
+            })
+
+        return content
+
+
+    def _clean_toc(self, toc_str: str) -> str:
+        """
+        Enhanced TOC cleaning function that handles common PDF extraction issues
+        """
+        # Parse JSON if it's in JSON format
+        try:
+            toc_data = json.loads(toc_str)
+            if isinstance(toc_data, list):
+                return self._clean_json_toc(toc_data)
+        except json.JSONDecodeError:
+            pass
+        
+        # Handle plain text TOC
+        lines = toc_str.splitlines()
+        cleaned = []
+        seen = set()
+        
+        # Common patterns to remove
+        garbage_patterns = [
+            r'^(indice|sommario|table of contents|capitolo)\s*$',
+            r'^information and communication technologies group policy\s*$',
+            r'^[\d\.\-\s]*$',  # Only numbers, dots, dashes, spaces
+            r'^\s*\.{3,}\s*\d*\s*$',  # Dotted lines with page numbers
+            r'^\s*page\s*\d*\s*$',  # Page references
+            r'^\.\.\.\.\.*\d*$',  # Multiple dots with optional page number
+        ]
+        
+        for line in lines:
+            original_line = line.strip()
+            if not original_line:
+                continue
+                
+            # Skip garbage patterns
+            is_garbage = False
+            for pattern in garbage_patterns:
+                if re.match(pattern, original_line.lower()):
+                    is_garbage = True
+                    break
+            
+            if is_garbage:
+                continue
+                
+            # Clean the line
+            cleaned_line = self._clean_single_toc_line(original_line)
+            
+            if not cleaned_line:
+                continue
+                
+            # Avoid duplicates
+            norm_line = cleaned_line.lower().strip()
+            if norm_line in seen or len(norm_line) < 3:
+                continue
+                
+            seen.add(norm_line)
+            cleaned.append(cleaned_line)
+        
+        return '\n'.join(cleaned)
+
+    def _clean_json_toc(self, toc_data: list) -> str:
+        """
+        Clean TOC data that comes in JSON format
+        """
+        cleaned = []
+        seen = set()
+        
+        for item in toc_data:
+            if not isinstance(item, dict):
+                continue
+                
+            text = item.get('text', '').strip()
+            level = item.get('level', 1)
+            page = item.get('page', '')
+            
+            if not text:
+                continue
+                
+            # Skip common garbage entries
+            if re.match(r'^information and communication technologies group policy\s*$', text.lower()):
+                continue
+                
+            if re.match(r'^(indice|sommario|table of contents|capitolo)\s*$', text.lower()):
+                continue
+                
+            if re.match(r'^[\d\.\-\s]*$', text):
+                continue
+                
+            # Clean the text
+            cleaned_text = self._clean_single_toc_line(text)
+            
+            if not cleaned_text or len(cleaned_text.strip()) < 3:
+                continue
+                
+            # Avoid duplicates
+            norm_text = cleaned_text.lower().strip()
+            if norm_text in seen:
+                continue
+                
+            seen.add(norm_text)
+            
+            # Format with level indentation
+            indent = "  " * (level - 1) if level > 1 else ""
+            page_info = f" (p. {page})" if page else ""
+            cleaned.append(f"{indent}{cleaned_text}{page_info}")
+        
+        return '\n'.join(cleaned)
+
+    def _clean_single_toc_line(self, line: str) -> str:
+        """
+        Clean a single TOC line
+        """
+        # Remove extra whitespace
+        line = re.sub(r'\s+', ' ', line.strip())
+        
+        # Handle chapter numbering issues
+        # Fix "2. 1 Title" -> "2.1 Title"
+        line = re.sub(r'^(\d+)\.\s+(\d+)', r'\1.\2', line)
+        
+        # Fix "2 .1 Title" -> "2.1 Title"  
+        line = re.sub(r'^(\d+)\s+\.(\d+)', r'\1.\2', line)
+        
+        # Standardize chapter numbering format
+        line = re.sub(r'^(\d+(?:\.\d+)*)\s*\.?\s*', r'\1 ', line)
+        
+        # Remove trailing dots and page references at the end
+        line = re.sub(r'\s*\.{2,}\s*\d*\s*$', '', line)
+        
+        # Remove standalone page numbers at the end
+        line = re.sub(r'\s+\d+\s*$', '', line)
+        
+        # Fix broken words (common in PDF extraction)
+        # Handle cases like "Reason for and Extent \nof Changes"
+        line = re.sub(r'\s*\n\s*', ' ', line)
+        
+        # Remove multiple spaces
+        line = re.sub(r'\s{2,}', ' ', line)
+        
+        return line.strip()
+
+    # Additional helper function for more sophisticated duplicate detection
+    def _normalize_for_comparison(self, text: str) -> str:
+        """
+        Normalize text for duplicate detection
+        """
+        # Remove punctuation and convert to lowercase
+        normalized = re.sub(r'[^\w\s]', '', text.lower())
+        # Remove extra spaces
+        normalized = re.sub(r'\s+', ' ', normalized.strip())
+        return normalized
+
+
+
 
     def _process_page_images(self, doc, page, page_num: int) -> List[Dict]:
             """

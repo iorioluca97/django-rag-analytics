@@ -22,8 +22,8 @@ urlpatterns = [
     path('chat/<int:doc_id>/', views.chat, name='chat'),
     # URL per l analisi dei documenti
     path('analytics/<int:doc_id>/', views.analyze_document, name='analyze_document'),
-    
-    # path('save-env-keys/', views.save_env_keys, name='save_env_keys'),
+    # URL per salvare le chiavi dell'ambiente
+    path('save-env-keys/', views.save_env_keys, name='save_env_keys'),
 
 
 ]

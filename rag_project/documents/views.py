@@ -1,8 +1,7 @@
 import time
 from django.shortcuts import render
-from .models import Document, DocumentImage, Entity
+from .models import Document, DocumentImage
 from django.shortcuts import redirect
-from .utils.utility_functions import extract_text_from_bytes
 from .utils.logger import logger
 from django.http import HttpResponse, JsonResponse
 from django.shortcuts import get_object_or_404
@@ -11,8 +10,8 @@ from django.core.files.base import ContentFile
 from .utils.text_extraction import DocumentExtractor
 import os
 from django.views.decorators.csrf import csrf_exempt
-from dotenv import set_key, load_dotenv
-from .utils.text_summarization import summarize_text
+from dotenv import load_dotenv
+from .utils.text_summarization import summarize_documents
 
 def home(request):
     # Fetch all documents to display on the home page
@@ -103,8 +102,9 @@ def summarize_document(request, doc_id):
         return render(request, 'documents/upload_error.html', {'error': 'Document file is missing.'})
 
     try:
-        text = extract_text_from_bytes(doc.raw_bytes)
-        summary = summarize_text(text, llm_settings)
+        document_extractor = DocumentExtractor(doc.raw_bytes)
+        documents = document_extractor.extract_text()
+        summary = summarize_documents(documents, llm_settings)
 
         logger.debug(f"Generated summary: {summary[:1000]}...")  # Log the first 1000 characters of the summary
 
@@ -185,8 +185,6 @@ def analyze_document(request, doc_id):
         # from .utils.text_embedding import MongoDb
         # mongodb = MongoDb(collection_name=doc.title.replace(' ', '_').lower())
         # mongodb.index_chunks(documents, doc)
-        logger.debug(type(images_extracted))
-        logger.debug(len(images_extracted))
 
         # Log the time taken for text extraction
         end_time = time.time()
@@ -218,20 +216,25 @@ def chat(request, doc_id):
     })
 
 
-# @csrf_exempt
-# def save_env_keys(request):
-#     if request.method == 'POST':
-#         openai_key = request.POST.get('openai_key')
-#         mongo_uri = request.POST.get('mongo_uri')
+@csrf_exempt
+def save_env_keys(request):
+    if request.method == 'POST':
+        openai_key = request.POST.get('openai_key')
+        mongo_uri = request.POST.get('mongo_uri')
 
-#         # Clear the environment variables in memory
-#         os.environ.pop('OPENAI_API_KEY', None)
-#         os.environ.pop('MONGO_URI', None)
+        # Clear the environment variables in memory
+        os.environ.pop('OPENAI_API_KEY', None)
+        os.environ.pop('MONGO_URI', None)
 
-#         load_dotenv()
+        load_dotenv()
 
-#         os.environ['OPENAI_API_KEY'] = openai_key
-#         os.environ['MONGO_URI'] = mongo_uri
+        os.environ['OPENAI_API_KEY'] = openai_key
+        os.environ['MONGO_URI'] = mongo_uri
 
-#         return JsonResponse({'status': 'success'})
-#     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+        # Save the keys to the .env file
+        with open('./.env', 'a') as env_file:
+            env_file.write(f'\nOPENAI_API_KEY={openai_key}\n')
+            env_file.write(f'MONGO_URI={mongo_uri}\n')
+
+        return JsonResponse({'status': 'success'})
+    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
