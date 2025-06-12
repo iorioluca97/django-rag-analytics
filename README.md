@@ -1,78 +1,40 @@
-# RAG-based Document Analytics & Summarization
+# 📄 RAG-based Document Analytics & Summarization
+Non avevo nulla da fare nel weekend e django non l'ho mai visto quindi beccati questo.. 
 
-Progetto Django per il caricamento, l’analisi e il riassunto di documenti (PDF, articoli, report) tramite Retrieval-Augmented Generation (RAG).
+*Progetto Django per il caricamento, l’analisi e il riassunto di documenti (PDF, articoli, report) tramite Retrieval-Augmented Generation (RAG).*
 
 ---
 
-## Caratteristiche principali
+## 🚀 Avvia in GitHub Codespaces
 
+[![Apri in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?hide_repo_select=true&repo=iorioluca97/django-rag-analytics&ref=dev)
+
+### ⚙️ Setup iniziale
+
+1. Crea un file `.env` nella root del progetto e inserisci la tua API key OpenAI:
+
+   ```env
+   OPENAI_API_KEY="LA_TUA_API_KEY"
+   
+2. Avvia l'applicazione con Docker:
+
+    ```env
+    docker-compose up --build
+    ```
+
+## ✨ Caratteristiche principali
 * Upload di documenti PDF tramite interfaccia web
-* Estrazione testo dai documenti caricati
-* Generazione di embeddings per ricerca semantica (integrazione con LangChain/MongoDB)
-* Funzionalità di ricerca semantica nei documenti
-* Estrazione di immagini ed insights
-* Riassunti automatici personalizzabili e highlight di estratti chiave
 
----
+* Estrazione del testo dai documenti caricati, generazione della table of content
 
-## Requisiti
+* Generazione di embeddings per ricerca semantica (integrazione con LangChain)
 
-* Python 3.11+
-* Django 5.2.2
-* librerie per gestione PDF (es. `PyPDF2`, `pdfminer.six`)
-* LangChain (per NLP)
-* Client Pinecone o Chroma (per database vettoriale)
-* Virtualenv o Poetry consigliati per l’ambiente virtuale
+* Estrazione di immagini e insight
 
----
+* Riassunti automatici personalizzabili
 
-## Installazione
-
-1. Clona il repository:
-
-```bash
-git clone https://github.com/tuo-utente/django-rag-analytics.git
-cd django-rag-analytics
-```
-
-2. Crea e attiva un ambiente virtuale (consigliato):
-
-```bash
-pip install poetry
-poetry install
-```
-
-3. Configura le variabili d’ambiente (`.env`):
-
-```
-OPENAI_API_KEY=la-tua-chiave-openai
-MONGO_URI=uri-del-tuo-mongodb
-```
-
-4. Applica le migrazioni Django:
-
-```bash
-poetry run python rag_project/manage.py migrate
-```
-
-5. Crea un superuser:
-
-```bash
-poetry run python manage.py createsuperuser
-```
-
-6. Avvia il server di sviluppo:
-
-```bash
-poetry run python manage.py runserver
-```
-
----
-
-## Uso
-
-* Visita `http://localhost:8000/` per accedere alla home page
-* Carica documenti PDF tramite il form di upload
+## 🧪 Uso
+* Carica i documenti PDF tramite il form di upload:
 
 ![alt text](./readme_media/home.png)
 
@@ -84,44 +46,37 @@ poetry run python manage.py runserver
 
 ![alt text](./readme_media/analytics.png)
 
----
-
-## Struttura del progetto
+🗂️ Struttura del progetto
 
 ```
 rag_project/
-├── documents/           # App principale
+├── documents/            # App principale
 │   ├── migrations/
 │   ├── templates/
 │   │   └── documents/
 │   │       ├── home.html
-│   │       └── upload.html
+│   │       └── document.html
+│   │       └── analytics.html
 │   ├── views.py
 │   ├── models.py
 │   └── urls.py
-├── rag_project/         # Configurazione progetto Django
-├── templates/           # Cartella template globale (se usata)
+├── rag_project/          # Configurazione principale Django
+├── templates/            # Cartella template globale
 ├── manage.py
 └── requirements.txt
 ```
 
----
+## 🔭 Prossimi sviluppi
+* Integrazione con database vettoriale (es. MongoDB + Atlas Vector Search)
 
-## Prossimi sviluppi
+* Chat interattiva basata su RAG
 
-* Connessione a database vettoriale MongoDB per ricerca semantica
-* Chat interattiva RAG based
-* Funzioni di highlight interattivi
-* Estrazione NER
+* Estrazione di entità nominate (NER)
 
----
+* Altro? Suggerisci pure!!
 
-## Contribuire
+## 🤝 Contribuire
+Vuoi contribuire? Sentiti libero di aprire una issue o inviare una pull request.
 
-Se vuoi contribuire, apri una issue o una pull request.
-
----
-
-## Licenza
-
-[MIT License](LICENSE)
+## 📄 Licenza
+Distribuito sotto [Licenza MIT](LICENSE)
