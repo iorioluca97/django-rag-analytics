@@ -50,7 +50,6 @@ def summarize_text(
     except Exception as e:
         print(f"Error during OpenAI API call: {e}")
 
-    logger.debug(f"OpenAI API response: {response}")
     summary = response.choices[0].message.content
     return summary
 

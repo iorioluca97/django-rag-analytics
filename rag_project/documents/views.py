@@ -218,24 +218,20 @@ def chat(request, doc_id):
     })
 
 
-@csrf_exempt
-def save_env_keys(request):
-    if request.method == 'POST':
-        openai_key = request.POST.get('openai_key')
-        mongo_uri = request.POST.get('mongo_uri')
+# @csrf_exempt
+# def save_env_keys(request):
+#     if request.method == 'POST':
+#         openai_key = request.POST.get('openai_key')
+#         mongo_uri = request.POST.get('mongo_uri')
 
-        # Clear the environment variables in memory
-        os.environ.pop('OPENAI_API_KEY', None)
-        os.environ.pop('MONGO_URI', None)
+#         # Clear the environment variables in memory
+#         os.environ.pop('OPENAI_API_KEY', None)
+#         os.environ.pop('MONGO_URI', None)
 
-        env_path = os.path.join(os.path.dirname(os.path.dirname(__file__)), '.env')
-        load_dotenv(dotenv_path=env_path)
+#         load_dotenv()
 
-        if openai_key:
-            set_key(env_path, 'OPENAI_API_KEY', openai_key)
+#         os.environ['OPENAI_API_KEY'] = openai_key
+#         os.environ['MONGO_URI'] = mongo_uri
 
-        if mongo_uri:
-            set_key(env_path, 'MONGO_URI', mongo_uri)
-
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+#         return JsonResponse({'status': 'success'})
+#     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
