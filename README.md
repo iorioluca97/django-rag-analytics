@@ -44,8 +44,11 @@ Non avevo nulla da fare nel weekend e django non l'ho mai visto quindi beccati q
 
 * Utilizza l'analisi documentale per estrarre maggiori informazioni, immagini, table of content e molto altro!
 
-![alt text](./readme_media/analytics.png)
+![alt text](./readme_media/analytics_1.png)
 
+![alt text](./readme_media/analytics_2.png)
+
+---
 🗂️ Struttura del progetto
 
 ```
