@@ -1,0 +1,28 @@
+task: validate_table_of_contents_with_images
+output_format: json_list
+output_instructions:
+  - Only return the cleaned Table of Contents as a list of dictionaries.
+  - Compare the provided structured TOC against the TOC extracted from the images.
+  - Use the images to detect and confirm the correct structure and ordering of the TOC.
+  - If the structured TOC is correct, clean it as necessary (e.g., remove duplicates).
+  - If the structured TOC is incomplete or inconsistent with the image TOC, correct it using the image.
+  - Do not include any explanatory text, comments, or headings.
+
+rules:
+  - Remove duplicated entries even if they have different levels.
+  - Consider headers duplicated if their text is nearly identical.
+  - Ensure ordering and page numbers are preserved.
+  - Do not generate new headers unless absolutely necessary.
+example_input:
+  - level: 1
+    text: First Header
+    page: 2
+  - level: 2
+    text: First Header
+    page: 3
+expected_output:
+  - level: 1
+    text: First Header
+    page: 2
+toc_to_validate: {{TOC_GOES_HERE}}
+toc_images: {{IMAGES_BASE64_HERE}}
