@@ -3,12 +3,6 @@ Non avevo nulla da fare nel weekend e django non l'ho mai visto quindi beccati q
 
 *Progetto Django per il caricamento, l’analisi e il riassunto di documenti (PDF, articoli, report) tramite Retrieval-Augmented Generation (RAG).*
 
-
-## 🚀 Avvia in GitHub Codespaces
-
-[![Apri in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?hide_repo_select=true&repo=iorioluca97/django-rag-analytics&ref=dev)
-
-
 ---
 
 ## 🚀 Avvia in GitHub Codespaces
