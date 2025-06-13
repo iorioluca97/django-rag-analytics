@@ -1,6 +1,5 @@
 .env
 *__pycache__
-*/__pycache__/
-__pycache__
+rag_project/__pycache__/
 media
 rag_project/db.sqlite3
