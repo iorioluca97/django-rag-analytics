@@ -4,3 +4,4 @@
 __pycache__
 media
 rag_project/db.sqlite3
+*.pyc

@@ -10,17 +10,17 @@ Non avevo nulla da fare nel weekend e django non l'ho mai visto quindi beccati q
 [![Apri in GitHub Codespaces](https://github.com/codespaces/badge.svg)](https://github.com/codespaces/new?hide_repo_select=true&repo=iorioluca97/django-rag-analytics&ref=dev)
 
 ### ⚙️ Setup iniziale
-
-1. Crea un file `.env` nella root del progetto e inserisci la tua API key OpenAI:
-
-   ```env
-   OPENAI_API_KEY="LA_TUA_API_KEY"
    
-2. Avvia l'applicazione con Docker:
+1. Avvia l'applicazione con Docker:
 
     ```env
     docker-compose up --build
     ```
+
+2. Inserisci la tua API KEY OpenAI nell'apposito form e salva.
+
+3. Carica un PDF e analizzalo!
+
 
 ## ✨ Caratteristiche principali
 * Upload di documenti PDF tramite interfaccia web
