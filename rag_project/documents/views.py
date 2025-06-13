@@ -13,6 +13,7 @@ import os
 from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv, set_key, dotenv_values
 from .utils.text_summarization import summarize_documents
+from .utils.RAG import RAG
 
 def home(request):
     # Fetch all documents to display on the home page
@@ -243,11 +244,41 @@ def chat(request, doc_id):
     Placeholder for the chat view.
     This function will handle the chat functionality.
     """
+    doc = Document.objects.get(id=doc_id) or render(request, 'documents/upload_error.html', {'error': 'Document not found.'})
+    analytics = DocumentAnalytics.objects.filter(document=doc).first()
+    if not analytics:
+        return render(request, 'documents/upload_error.html', {'error': 'Document analytics not found.'})
+    
+    # If analytics exist, render the chat page
     return render(request, 'documents/chat.html', {
         'doc_id': doc_id,
-        'document': Document.objects.get(id=doc_id)
+        'document': Document.objects.get(id=doc_id),
+        'analytics': analytics
     })
 
+
+@csrf_exempt
+def ask_question(request, doc_id):
+    if request.method == "POST":
+        data = json.loads(request.body)
+        if not data.get("text"):
+            return JsonResponse({"status": "error", "message": "Text is required."}, status=400)
+        
+        rag = RAG(
+            mongo_uri=os.getenv("MONGO_URI"),
+            database_name="django_rag_analytics",
+            top_k_documents=5,  # You can adjust this value based on your needs
+            collection_name=Document.objects.get(id=doc_id).title
+        )
+        # Process the user query
+        response = rag.answer_question(user_query=data.get("text"), )
+        
+        # Return the response as JSON
+        return JsonResponse({
+            "status": "success",
+            "rag_response": response,
+            "status_code": 200,
+        })
 
 
 @csrf_exempt

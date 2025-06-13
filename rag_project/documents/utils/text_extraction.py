@@ -135,8 +135,8 @@ class DocumentExtractor:
                 break
         if toc_page_number is None:
             logger.warning("No starting point for TOC found in the first 10 pages.")
-            return None
-        
+            return "Not found any TOC", 0
+
         # Extract text from the TOC page
         toc_page = doc.load_page(toc_page_number)
         toc_text = toc_page.get_text("text") 

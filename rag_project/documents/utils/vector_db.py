@@ -65,6 +65,41 @@ class MongoDb:
             return getattr(collection, name)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
+    def query(self, query_text: str, top_k: int = 5):
+        try:
+            # Generate query embedding
+            query_embedding = self.embedding_model.embed_query(query_text.lower())
+
+            # Cosine similarity function
+            def cosine_similarity(vec1, vec2):
+                return np.dot(vec1, vec2) / (
+                    np.linalg.norm(vec1) * np.linalg.norm(vec2)
+                )
+
+            # Get all documents
+            all_documents = list(self.collection.find({}))
+
+            # Calculate scores for each document
+            results = []
+            for doc in all_documents:
+                doc = self.collection.find_one()
+                score = cosine_similarity(query_embedding, np.array(doc["embedding"]))
+                results.append(
+                    {
+                        "page": doc["page"],
+                        "text": doc["text"],
+                        "score": score,
+                    }
+                )
+
+            # Sort by score and get top_k
+            results.sort(key=lambda x: x["score"], reverse=True)
+            return results[:top_k]
+
+        except Exception as e:
+            print(f"Errore durante l'esecuzione della query: {e}")
+            return []
+        
     def query_with_keyword_filter(
         self, query_text: str, top_k: int = 5, keyword_filter: List[str] = None
     ):
@@ -126,7 +161,6 @@ class MongoDb:
         logger.info(f"Indexing {len(chunks)} chunks for document ID: {doc.id}")
 
         for chunk in chunks:
-            logger.info(chunk)
             try:
                 # Generate embedding for the chunk
                 embedding = self.embedding_model.embed_documents([chunk.page_content])[0]

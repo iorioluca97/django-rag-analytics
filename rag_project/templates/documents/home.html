@@ -149,10 +149,26 @@
             text-align: center;
             padding: 4rem 2rem;
             background: var(--primary-gradient);
+            background-size: 200% 200%; /* Aumenta la dimensione del gradiente per movimento */
+            animation: backgroundMove 7s ease infinite;
             color: white;
             position: relative;
             overflow: hidden;
         }
+
+        /* Animazione per il gradiente in movimento */
+        @keyframes backgroundMove {
+            0% {
+                background-position: 0% 50%;
+            }
+            50% {
+                background-position: 100% 50%;
+            }
+            100% {
+                background-position: 0% 50%;
+            }
+        }
+
 
         .hero-section::before {
             content: '';
@@ -162,7 +178,21 @@
             right: 0;
             bottom: 0;
             background: url('data:image/svg+xml,<svg xmlns="http://www.w3.org/2000/svg" viewBox="0 0 100 100"><defs><pattern id="grain" width="100" height="100" patternUnits="userSpaceOnUse"><circle cx="25" cy="25" r="1" fill="white" opacity="0.1"/><circle cx="75" cy="75" r="1" fill="white" opacity="0.1"/><circle cx="50" cy="10" r="1" fill="white" opacity="0.1"/><circle cx="10" cy="90" r="1" fill="white" opacity="0.1"/><circle cx="90" cy="40" r="1" fill="white" opacity="0.1"/></pattern></defs><rect width="100" height="100" fill="url(%23grain)"/></svg>');
+            background-repeat: repeat;
+            background-size: 200% 200%;
+            animation: grainMove 10s linear infinite;
             pointer-events: none;
+            z-index: 0;
+        }
+
+        /* Animazione del pattern */
+        @keyframes grainMove {
+            0% {
+                background-position: 0 0;
+            }
+            100% {
+                background-position: 100px 100px;
+            }
         }
 
         .hero-content {
@@ -546,6 +576,43 @@
             outline: 2px solid var(--primary-color);
             outline-offset: 2px;
         }
+
+    .hero-section {
+        text-align: center;
+        padding: 4rem 2rem;
+        background: linear-gradient(135deg, #667eea, #764ba2);
+        position: relative;
+        overflow: hidden;
+        color: white;
+        z-index: 0;
+    }
+
+    .hero-bg-wave {
+        position: absolute;
+        bottom: 0;
+        left: 0;
+        width: 100%;
+        height: 100%;
+        animation: waveMove 15s ease-in-out infinite alternate;
+        z-index: 0;
+    }
+
+    .hero-section .hero-content {
+        position: relative;
+        z-index: 1;
+        max-width: 800px;
+        margin: 0 auto;
+    }
+
+    @keyframes waveMove {
+        0% {
+            transform: translateY(0) scaleX(1);
+        }
+        100% {
+            transform: translateY(10px) scaleX(1.05);
+        }
+    }
+
     </style>
 </head>
 <body>
@@ -562,6 +629,9 @@
     </header>
 
     <div class="hero-section">
+        <svg class="hero-bg-wave" viewBox="0 0 1440 320" preserveAspectRatio="none">
+            <path fill="#667eea" fill-opacity="0.4" d="M0,192L80,181.3C160,171,320,149,480,154.7C640,160,800,192,960,202.7C1120,213,1280,203,1360,197.3L1440,192L1440,0L1360,0C1280,0,1120,0,960,0C800,0,640,0,480,0C320,0,160,0,80,0L0,0Z"></path>
+        </svg>
         <div class="hero-content">
             <h1>Analizza i tuoi documenti con AI</h1>
             <p>Carica PDF, estrai contenuti e ottieni insights intelligenti in pochi secondi con la potenza dell'intelligenza artificiale</p>

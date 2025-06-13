@@ -769,58 +769,7 @@
     <main>
         <div class="chat-container">
             <div class="messages-area" id="messages-area">
-                <div class="empty-state" id="empty-state">
-                    <div class="icon">
-                        <i class="fas fa-comments"></i>
-                    </div>
-                    <h2>Ciao! Come posso aiutarti oggi?</h2>
-                    <p>Sono il tuo assistente AI. Puoi farmi domande su qualsiasi argomento, chiedermi di scrivere testi, analizzare dati o aiutarti con i tuoi progetti.</p>
-                    
-                    <div class="suggestions">
-                        <div class="suggestion-card" onclick="sendSuggestedMessage('Spiegami come funziona l\'intelligenza artificiale in termini semplici')">
-                            <div class="suggestion-icon">
-                                <i class="fas fa-brain"></i>
-                            </div>
-                            <h3>Intelligenza Artificiale</h3>
-                            <p>Spiegami come funziona l'IA in termini semplici</p>
-                        </div>
-                        
-                        <div class="suggestion-card" onclick="sendSuggestedMessage('Aiutami a scrivere un email professionale per richiedere informazioni')">
-                            <div class="suggestion-icon">
-                                <i class="fas fa-envelope"></i>
-                            </div>
-                            <h3>Scrittura Professionale</h3>
-                            <p>Aiutami a scrivere un'email professionale</p>
-                        </div>
-                        
-                        <div class="suggestion-card" onclick="sendSuggestedMessage('Dammi 5 idee creative per un progetto di marketing digitale')">
-                            <div class="suggestion-icon">
-                                <i class="fas fa-lightbulb"></i>
-                            </div>
-                            <h3>Brainstorming</h3>
-                            <p>Idee creative per progetti e soluzioni</p>
-                        </div>
-                        
-                        <div class="suggestion-card" onclick="sendSuggestedMessage('Analizza questo codice Python e suggerisci miglioramenti')">
-                            <div class="suggestion-icon">
-                                <i class="fas fa-code"></i>
-                            </div>
-                            <h3>Programmazione</h3>
-                            <p>Aiuto con codice e sviluppo software</p>
-                        </div>
-                    </div>
                 </div>
-                
-                <div class="typing-indicator" id="typing-indicator">
-                    <i class="fas fa-robot"></i>
-                    <span>L'assistente sta scrivendo</span>
-                    <div class="typing-dots">
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                        <div class="typing-dot"></div>
-                    </div>
-                </div>
-            </div>
             
             <div class="input-area">
                 <div class="input-container">
@@ -843,30 +792,250 @@
             </div>
         </div>
     </main>
-    <script>
-    
-        document.addEventListener('DOMContentLoaded', function() {
-            // Gestione tema
-            const themeToggle = document.getElementById('theme-toggle');
-            const themeIcon = themeToggle.querySelector('i');
-            
-            const savedTheme = localStorage.getItem('theme') || 'light';
-            document.body.setAttribute('data-theme', savedTheme);
-            updateThemeIcon(savedTheme);
+<script>
+    document.addEventListener('DOMContentLoaded', function() {
+        
+        // --- SELETTORI DEGLI ELEMENTI DEL DOM ---
+        const themeToggle = document.getElementById('theme-toggle');
+        const themeIcon = themeToggle.querySelector('i');
+        const sendButton = document.getElementById('send-button');
+        const messageInput = document.getElementById('message-input');
+        const messagesArea = document.getElementById('messages-area');
+        const inputCounter = document.getElementById('input-counter');
+        const clearChatButton = document.getElementById('clear-chat');
 
-            function updateThemeIcon(theme) {
-                themeIcon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        // NUOVA MODIFICA: Variabile per memorizzare la cronologia della chat
+        let chatHistory = [];
+
+        // --- GESTIONE TEMA (LIGHT/DARK) ---
+        // ... (questa parte rimane invariata)
+        const savedTheme = localStorage.getItem('theme') || 'dark';
+        document.body.setAttribute('data-theme', savedTheme);
+        updateThemeIcon(savedTheme);
+
+        function updateThemeIcon(theme) {
+            themeIcon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+        }
+
+        themeToggle.addEventListener('click', function() {
+            const currentTheme = document.body.getAttribute('data-theme');
+            const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            
+            document.body.setAttribute('data-theme', newTheme);
+            localStorage.setItem('theme', newTheme);
+            updateThemeIcon(newTheme);
+        });
+
+
+        // --- URL PER LA RICHIESTA AJAX ---
+        const url = "ask-question/";
+        
+        // --- STATO INIZIALE DELLA CHAT ---
+        // ... (questa parte rimane invariata)
+        const emptyStateHTML = `
+            <div class="empty-state" id="empty-state">
+                <div class="icon"><i class="fas fa-comments"></i></div>
+                <h2>Ciao! Come posso aiutarti oggi?</h2>
+                <p>Sono il tuo assistente AI. Puoi farmi domande su questo documento, chiedermi riassunti o analisi specifiche.</p>
+                <div class="suggestions">
+                    <div class="suggestion-card" onclick="sendSuggestedMessage('Riassumi il documento in 3 punti chiave.')">
+                        <div class="suggestion-icon"><i class="fas fa-list-ul"></i></div>
+                        <h3>Riassunto Rapido</h3>
+                        <p>Chiedi un riassunto dei punti principali del documento.</p>
+                    </div>
+                    <div class="suggestion-card" onclick="sendSuggestedMessage('Quali sono le entità (persone, luoghi, organizzazioni) menzionate?')">
+                        <div class="suggestion-icon"><i class="fas fa-tags"></i></div>
+                        <h3>Analisi Entità</h3>
+                        <p>Estrai persone, luoghi e organizzazioni dal testo.</p>
+                    </div>
+                    <div class="suggestion-card" onclick="sendSuggestedMessage('Qual è il sentiment generale del documento?')">
+                        <div class="suggestion-icon"><i class="fas fa-smile-beam"></i></div>
+                        <h3>Sentiment Analysis</h3>
+                        <p>Analizza il tono e il sentiment del contenuto.</p>
+                    </div>
+                    <div class="suggestion-card" onclick="sendSuggestedMessage('Crea una lista di possibili domande e risposte basate sul testo.')">
+                        <div class="suggestion-icon"><i class="fas fa-question-circle"></i></div>
+                        <h3>Genera Q&A</h3>
+                        <p>Crea una lista di FAQ basate sul contenuto del documento.</p>
+                    </div>
+                </div>
+            </div>`;
+        
+        function initializeChat() {
+            messagesArea.innerHTML = emptyStateHTML;
+        }
+
+        initializeChat();
+        
+        // --- GESTIONE INPUT UTENTE ---
+        // ... (questa parte rimane invariata)
+        messageInput.addEventListener('input', () => {
+            const text = messageInput.value;
+            sendButton.disabled = text.trim().length === 0;
+            inputCounter.textContent = `${text.length}/2000`;
+            messageInput.style.height = 'auto';
+            messageInput.style.height = (messageInput.scrollHeight) + 'px';
+        });
+        sendButton.disabled = true;
+        messageInput.addEventListener('keydown', (e) => {
+            if (e.key === 'Enter' && !e.shiftKey) {
+                e.preventDefault();
+                sendButton.click();
+            }
+        });
+
+        // --- FUNZIONE PER INVIARE IL MESSAGGIO ---
+        const handleSendMessage = () => {
+            const text = messageInput.value.trim();
+            if (!text) return;
+
+            const emptyState = document.getElementById('empty-state');
+            if (emptyState) {
+                emptyState.remove();
             }
 
-            themeToggle.addEventListener('click', function() {
-                const currentTheme = document.body.getAttribute('data-theme');
-                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+            appendMessage('user', text);
+            
+            // NUOVA MODIFICA: Aggiungi il messaggio dell'utente alla cronologia locale.
+            // La struttura {role: ..., content: ...} è molto comune e facile da gestire nel backend.
+            chatHistory.push({ role: 'user', content: text });
+
+            messageInput.value = "";
+            messageInput.style.height = 'auto';
+            inputCounter.textContent = '0/2000';
+            sendButton.disabled = true;
+
+            showTypingIndicator(true);
+            sendButton.classList.add('loading');
+
+            // NUOVA MODIFICA: Il payload ora include la cronologia.
+            const payload = {
+                text: text, // La domanda attuale
+                history: chatHistory // L'array con la cronologia dei messaggi precedenti
+            };
+
+            fetch(url, {
+                method: "POST",
+                headers: {
+                    "Content-Type": "application/json",
+                    "X-CSRFToken": getCookie("csrftoken")
+                },
+                body: JSON.stringify(payload)
+            })
+            .then(response => {
+                if (!response.ok) {
+                    throw new Error(`HTTP error! status: ${response.status}`);
+                }
+                return response.json();
+            })
+            .then(data => {
+                const responseText = data.status === "success" ? data.rag_response : "Si è verificato un errore: " + data.message;
+                appendMessage("assistant", responseText);
+
+                // NUOVA MODIFICA: Aggiungi anche la risposta dell'assistente alla cronologia.
+                chatHistory.push({ role: 'assistant', content: responseText });
+
+            })
+            .catch(error => {
+                console.error("Errore Fetch:", error);
+                const errorText = "Impossibile connettersi al server. Riprova più tardi.";
+                appendMessage("assistant", errorText);
                 
-                document.body.setAttribute('data-theme', newTheme);
-                localStorage.setItem('theme', newTheme);
-                updateThemeIcon(newTheme);
+                // NUOVA MODIFICA: Aggiungi anche il messaggio di errore alla cronologia per coerenza.
+                chatHistory.push({ role: 'assistant', content: errorText });
+            })
+            .finally(() => {
+                showTypingIndicator(false);
+                sendButton.classList.remove('loading');
             });
+        };
+
+        sendButton.addEventListener("click", handleSendMessage);
+        
+        // --- FUNZIONI HELPER ---
+        // ... (le funzioni appendMessage, showTypingIndicator, getCookie rimangono invariate)
+        function appendMessage(sender, text) {
+            const messagesArea = document.getElementById("messages-area");
+            const messageEl = document.createElement("div");
+            messageEl.className = `message ${sender}`;
+
+            const iconClass = sender === "user" ? "fa-user" : "fa-robot";
+            const time = new Date().toLocaleTimeString('it-IT', { hour: '2-digit', minute: '2-digit' });
+
+            const existingTypingIndicator = document.getElementById('typing-indicator');
+            if (existingTypingIndicator) {
+                existingTypingIndicator.remove();
+            }
+
+            messageEl.innerHTML = `
+                <div class="message-avatar">
+                    <i class="fas ${iconClass}"></i>
+                </div>
+                <div class="message-content">
+                    <div class="message-text">${text}</div>
+                    <div class="message-time">${time}</div>
+                </div>
+            `;
+            messagesArea.appendChild(messageEl);
+            messagesArea.scrollTop = messagesArea.scrollHeight; // Auto-scroll
+        }
+        
+        function showTypingIndicator(show) {
+            const existingTypingIndicator = document.getElementById('typing-indicator');
+            if (show && !existingTypingIndicator) {
+                const typingEl = document.createElement("div");
+                typingEl.className = "message assistant";
+                typingEl.id = "typing-indicator";
+                typingEl.innerHTML = `
+                    <div class="message-avatar"><i class="fas fa-robot"></i></div>
+                    <div class="message-content">
+                        <div class="typing-dots">
+                            <div class="typing-dot"></div><div class="typing-dot"></div><div class="typing-dot"></div>
+                        </div>
+                    </div>
+                `;
+                messagesArea.appendChild(typingEl);
+                messagesArea.scrollTop = messagesArea.scrollHeight;
+            } else if (!show && existingTypingIndicator) {
+                existingTypingIndicator.remove();
+            }
+        }
+
+        function getCookie(name) {
+            let cookieValue = null;
+            if (document.cookie && document.cookie !== "") {
+                const cookies = document.cookie.split(";");
+                for (const cookieStr of cookies) {
+                    const cookie = cookieStr.trim();
+                    if (cookie.substring(0, name.length + 1) === (name + "=")) {
+                        cookieValue = decodeURIComponent(cookie.substring(name.length + 1));
+                        break;
+                    }
+                }
+            }
+            return cookieValue;
+        }
+
+
+        // Funzione per inviare un messaggio suggerito
+        window.sendSuggestedMessage = function(message) {
+            messageInput.value = message;
+            sendButton.disabled = false;
+            inputCounter.textContent = `${message.length}/2000`;
+            sendButton.click();
+        }
+
+        // Funzione per cancellare la chat
+        clearChatButton.addEventListener('click', () => {
+            if (confirm("Sei sicuro di voler cancellare tutta la conversazione?")) {
+                initializeChat();
+                // NUOVA MODIFICA: Resetta anche la variabile della cronologia.
+                chatHistory = []; 
+            }
         });
-    </script>
+
+    });
+</script>
 
 </body>
+</html>
