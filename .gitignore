@@ -1,7 +1,7 @@
 .env
 *__pycache__
-*/__pycache__/
-__pycache__
+rag_project/__pycache__/
+__pycache__/
+*.pyc
 media
 rag_project/db.sqlite3
-*.pyc
