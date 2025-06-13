@@ -1,6 +1,6 @@
 import time
 from django.shortcuts import render
-from .models import Document, DocumentImage
+from .models import Document, DocumentImage, DocumentAnalytics
 from django.shortcuts import redirect
 from .utils.logger import logger
 from django.http import HttpResponse, JsonResponse
@@ -8,9 +8,10 @@ from django.shortcuts import get_object_or_404
 import json
 from django.core.files.base import ContentFile
 from .utils.text_extraction import DocumentExtractor
+from .utils.vector_db import MongoDb
 import os
 from django.views.decorators.csrf import csrf_exempt
-from dotenv import load_dotenv
+from dotenv import load_dotenv, set_key, dotenv_values
 from .utils.text_summarization import summarize_documents
 
 def home(request):
@@ -24,9 +25,12 @@ def upload_document(request):
         x_forwarded_for = request.META.get('HTTP_X_FORWARDED_FOR')
         uploaded_file = request.FILES['file']
         uploaded_file.seek(0)
+
+        cleaned_title = uploaded_file.name.split('.')[0].lower() # Get the file name without extension
         document = Document.objects.create(
             file=uploaded_file, 
-            title=uploaded_file.name,
+            title=cleaned_title,
+            original_title=uploaded_file.name,
             uploaded_by=x_forwarded_for.split(',')[0] if x_forwarded_for else request.META.get('REMOTE_ADDR'),
             raw_bytes=uploaded_file.read(),
             size=uploaded_file.size
@@ -135,21 +139,36 @@ def serve_pdf(request, document_id):
     return response
 
 def analyze_document(request, doc_id):
-    doc = Document.objects.get(id=doc_id)
-    if not doc.file:
-        return render(request, 'documents/upload_error.html', {'error': 'Document file is missing.'})
 
+    doc = Document.objects.get(id=doc_id) or render(request, 'documents/upload_error.html', {'error': 'Document not found.'})
+    
+    # Get the document analytics
+    analytics = DocumentAnalytics.objects.filter(document=doc).first()
+    if analytics:
+        # If analytics already exist, render the analytics page
+        logger.debug(f"Document analytics found for document ID: {doc.id}, Title: {doc.title}")
+        return render(request, 'documents/analytics.html', {
+            'document': doc,
+            'toc': analytics.toc,
+            'full_text': analytics.full_text,
+            'language': analytics.language,
+            'reading_time': analytics.reading_time,
+            'page_numbers': analytics.page_count,
+            'words_count': analytics.words_count,
+            'images_count': analytics.images_extracted_count,
+            'elapsed_time': round((analytics.analyzed_at - doc.uploaded_at).total_seconds(), 2),
+            'images': doc.images.all()
+        })
+
+    # Document does not have analytics, proceed with extraction
     logger.debug(f"Processing document with ID: {doc.id}, Title: {doc.title}, Url: {doc.file.url}")
-
-    doc_extractor = DocumentExtractor(doc.raw_bytes)
-
     try:
+        doc_extractor = DocumentExtractor(doc.raw_bytes)
         start_time = time.time()
         toc = doc_extractor.extract_toc()
         chunks = doc_extractor.extract_text()
         full_text = " ".join(chunk.page_content for chunk in chunks)
         
-
         # Altri metadati
         language = doc_extractor.detect_language(full_text)
         reading_time = doc_extractor.estimate_reading_time(full_text)
@@ -181,14 +200,28 @@ def analyze_document(request, doc_id):
         #         end_pos=ent["end"]
         #     )
 
-        #TODO: Implement the MongoDB indexing logic
-        # from .utils.text_embedding import MongoDb
-        # mongodb = MongoDb(collection_name=doc.title.replace(' ', '_').lower())
-        # mongodb.index_chunks(documents, doc)
-
         # Log the time taken for text extraction
         end_time = time.time()
         elapsed_time = end_time - start_time
+
+        # Save analytics to the database
+        analytics = DocumentAnalytics(
+            document=doc,
+            toc=toc,
+            full_text=full_text,
+            language=language,
+            reading_time=reading_time,
+            page_count=page_numbers,
+            words_count=words_count,
+            images_extracted_count=len(images_extracted)
+        )
+        analytics.save()
+
+        try:
+            db = MongoDb(collection_name=doc.title)
+            db.index_chunks(chunks, doc)
+        except ValueError as e:
+            logger.error(f"Error indexing document chunks for document ID: {doc.id}, Title: {doc.title}, Error: {str(e)}")
 
         return render(request, 'documents/analytics.html', {
             'document': doc, 
@@ -216,25 +249,22 @@ def chat(request, doc_id):
     })
 
 
+
 @csrf_exempt
 def save_env_keys(request):
     if request.method == 'POST':
         openai_key = request.POST.get('openai_key')
         mongo_uri = request.POST.get('mongo_uri')
 
-        # Clear the environment variables in memory
-        os.environ.pop('OPENAI_API_KEY', None)
-        os.environ.pop('MONGO_URI', None)
+        env_path = './.env'
 
-        load_dotenv()
+        # Set and persist the values
+        set_key(env_path, 'OPENAI_API_KEY', openai_key)
+        set_key(env_path, 'MONGO_URI', mongo_uri)
 
-        os.environ['OPENAI_API_KEY'] = openai_key
-        os.environ['MONGO_URI'] = mongo_uri
-
-        # Save the keys to the .env file
-        with open('./.env', 'a') as env_file:
-            env_file.write(f'\nOPENAI_API_KEY={openai_key}\n')
-            env_file.write(f'MONGO_URI={mongo_uri}\n')
+        # Ricarica il file in os.environ (non solo scrittura)
+        load_dotenv(dotenv_path=env_path, override=True)
 
         return JsonResponse({'status': 'success'})
     return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+

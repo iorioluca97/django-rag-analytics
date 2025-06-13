@@ -128,26 +128,51 @@
             gap: 1rem;
         }
 
-        .theme-toggle {
+        .header-btn {
             background: var(--bg-secondary);
             border: 1px solid var(--border-light);
             color: var(--text-primary);
-            padding: 0.5rem;
+            padding: 0.5rem 1rem;
             border-radius: var(--radius-md);
             cursor: pointer;
             transition: all var(--transition-normal);
-            font-size: 1.2rem;
+            font-size: 0.95rem;
+            font-weight: 500;
+            text-decoration: none;
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            box-shadow: var(--shadow-sm);
+            white-space: nowrap;
+        }
+
+        .header-btn:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .chat-btn {
+            background: var(--accent-gradient);
+            color: white;
+            border: none;
+        }
+
+        .chat-btn:hover {
+            background: var(--success-gradient);
+            color: white;
+        }
+
+        .theme-toggle {
             width: 44px;
             height: 44px;
+            padding: 0.5rem;
             display: flex;
             align-items: center;
             justify-content: center;
-            box-shadow: var(--shadow-sm);
+            font-size: 1.2rem;
         }
 
         .theme-toggle:hover {
-            transform: translateY(-2px);
-            box-shadow: var(--shadow-md);
             background: var(--primary-color);
             color: white;
         }
@@ -747,6 +772,19 @@
                 margin: 1rem;
                 padding: 1.5rem;
             }
+
+            .header-actions {
+                gap: 0.5rem;
+            }
+
+            .chat-btn {
+                padding: 0.5rem 0.75rem;
+                font-size: 0.9rem;
+            }
+
+            .chat-btn .btn-text {
+                display: none;
+            }
         }
 
         /* Form styles */
@@ -922,7 +960,11 @@
                 Document Analytics
             </a>
             <div class="header-actions">
-                <button class="theme-toggle" id="theme-toggle" title="Cambia tema">
+                <a href="/chat/{{ document.id }}" class="header-btn chat-btn">
+                    <i class="fas fa-comments"></i>
+                    <span class="btn-text">Q&A al Documento</span>
+                </a>
+                <button class="header-btn theme-toggle" id="theme-toggle" title="Cambia tema">
                     <i class="fas fa-moon"></i>
                 </button>
             </div>

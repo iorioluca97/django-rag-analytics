@@ -6,7 +6,6 @@ from typing import Any, Dict, List, Optional
 import fitz
 from openai import OpenAI
 import yaml
-from rag_project.settings import OPENAI_API_KEY
 from .logger import logger
 from PIL import Image
 import io
@@ -62,11 +61,11 @@ class DocumentExtractor:
             return []
         
     def extract_text(self,
-        chunk_size: int = 1000,
-        chunk_overlap: int = 200) -> List[Document]:
+        chunk_size: int = 500,
+        chunk_overlap: int = 50) -> List[Document]:
         full_text = ""
 
-        for page in self.fitz_doc:
+        for i, page in enumerate(self.fitz_doc):
             full_text += page.get_text()
             full_text += "\n"  # separatore opzionale tra pagine
 
@@ -74,9 +73,16 @@ class DocumentExtractor:
             chunk_size=chunk_size,
             chunk_overlap=chunk_overlap
         )
+        chunks = text_splitter.split_text(full_text)
+        documents = []
+        for i, chunk in enumerate(chunks):
+            doc = Document(
+                page_content=chunk,
+                metadata={"page": i + 1}
+            )
+            documents.append(doc)
+        return documents
 
-        return text_splitter.create_documents([full_text])
-       
     def extract_images(self):
         """
         Given raw bytes, extracts images from the document.
@@ -139,7 +145,6 @@ class DocumentExtractor:
             
     def _toc_list_to_json(self, toc_list):
         return [{"level": level, "text": text.strip(), "page": page} for level, text, page in toc_list]
-
 
     def _validate_with_llm(self, toc_text: str, toc_page_num: int) -> List[Dict[str, Any]]:
         """
@@ -232,8 +237,6 @@ class DocumentExtractor:
         logger.debug(f"Validated TOC: {validated_toc}")
         return validated_toc
 
-
-
     def get_first_n_pages_as_base64_images(self, n: int = 5) -> list:
         images_base64 = []
 
@@ -247,8 +250,6 @@ class DocumentExtractor:
 
         return images_base64
 
-
-
     def build_multimodal_message(self, text: str, base64_images: List[str]) -> List[dict]:
         content = [{"type": "text", "text": text}]
         
@@ -259,7 +260,6 @@ class DocumentExtractor:
             })
 
         return content
-
 
     def _clean_toc(self, toc_str: str) -> str:
         """
@@ -399,7 +399,6 @@ class DocumentExtractor:
         
         return line.strip()
 
-    # Additional helper function for more sophisticated duplicate detection
     def _normalize_for_comparison(self, text: str) -> str:
         """
         Normalize text for duplicate detection
@@ -409,9 +408,6 @@ class DocumentExtractor:
         # Remove extra spaces
         normalized = re.sub(r'\s+', ' ', normalized.strip())
         return normalized
-
-
-
 
     def _process_page_images(self, doc, page, page_num: int) -> List[Dict]:
             """

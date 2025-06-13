@@ -1,19 +1,872 @@
 <!DOCTYPE html>
-<html lang="en">
+<html lang="it">
 <head>
     <meta charset="UTF-8">
+    <title>AI Chat - Assistente Intelligente</title>
     <meta name="viewport" content="width=device-width, initial-scale=1.0">
-    <title>Chat with Document</title>
-</head>
+    <link rel="stylesheet" href="https://unpkg.com/simplebar@latest/dist/simplebar.min.css" />
+    <script src="https://unpkg.com/simplebar@latest/dist/simplebar.min.js"></script>
 
-<main>
-<body>
-    <h1>Chat with Document</h1>
-    <p>TO BE IMPLEMENTED.</p>
-    <a href="/" class="back-button">
-            <span class="icon">🏠</span> Torna alla Home
-    </a>
-</main>
+    <link href="https://cdnjs.cloudflare.com/ajax/libs/font-awesome/6.4.0/css/all.min.css" rel="stylesheet">
+    <style>
+        @import url('https://fonts.googleapis.com/css2?family=Inter:wght@300;400;500;600;700&display=swap');
+
+        :root {
+            /* Palette colori moderna */
+            --primary-gradient: linear-gradient(135deg, #667eea 0%, #764ba2 100%);
+            --secondary-gradient: linear-gradient(135deg, #f093fb 0%, #f5576c 100%);
+            --success-gradient: linear-gradient(135deg, #4facfe 0%, #00f2fe 100%);
+            --accent-gradient: linear-gradient(135deg, #43e97b 0%, #38f9d7 100%);
+            
+            --primary-color: #667eea;
+            --secondary-color: #764ba2;
+            --accent-color: #4facfe;
+            --success-color: #43e97b;
+            --warning-color: #feca57;
+            --danger-color: #ff6b6b;
+            
+            --bg-primary: #f8fafc;
+            --bg-secondary: #ffffff;
+            --bg-tertiary: #f1f5f9;
+            --bg-user: #e0e7ff;
+            --bg-assistant: #f0f9ff;
+            
+            --text-primary: #1e293b;
+            --text-secondary: #64748b;
+            --text-muted: #94a3b8;
+            
+            --border-light: rgba(148, 163, 184, 0.2);
+            --border-medium: rgba(148, 163, 184, 0.3);
+            
+            --shadow-sm: 0 1px 2px 0 rgba(0, 0, 0, 0.05);
+            --shadow-md: 0 4px 6px -1px rgba(0, 0, 0, 0.1), 0 2px 4px -1px rgba(0, 0, 0, 0.06);
+            --shadow-lg: 0 10px 15px -3px rgba(0, 0, 0, 0.1), 0 4px 6px -2px rgba(0, 0, 0, 0.05);
+            --shadow-xl: 0 20px 25px -5px rgba(0, 0, 0, 0.1), 0 10px 10px -5px rgba(0, 0, 0, 0.04);
+            
+            --radius-sm: 8px;
+            --radius-md: 12px;
+            --radius-lg: 16px;
+            --radius-xl: 20px;
+            
+            --transition-fast: 0.15s ease;
+            --transition-normal: 0.3s ease;
+            --transition-slow: 0.5s ease;
+        }
+
+        [data-theme="dark"] {
+            --bg-primary: #0f172a;
+            --bg-secondary: #1e293b;
+            --bg-tertiary: #334155;
+            --bg-user: #312e81;
+            --bg-assistant: #164e63;
+            
+            --text-primary: #f8fafc;
+            --text-secondary: #cbd5e1;
+            --text-muted: #94a3b8;
+            
+            --border-light: rgba(203, 213, 225, 0.1);
+            --border-medium: rgba(203, 213, 225, 0.2);
+        }
+
+        * {
+            margin: 0;
+            padding: 0;
+            box-sizing: border-box;
+        }
+
+        body {
+            font-family: 'Inter', -apple-system, BlinkMacSystemFont, sans-serif;
+            background: var(--bg-primary);
+            color: var(--text-primary);
+            line-height: 1.6;
+            transition: all var(--transition-normal);
+            min-height: 100vh;
+            display: flex;
+            flex-direction: column;
+            font-size: 14px;
+        }
+
+        /* Header moderno con glassmorphism */
+        header {
+            background: rgba(255, 255, 255, 0.95);
+            backdrop-filter: blur(20px);
+            -webkit-backdrop-filter: blur(20px);
+            border-bottom: 1px solid var(--border-light);
+            padding: 1rem 2rem;
+            position: sticky;
+            top: 0;
+            z-index: 1000;
+            transition: all var(--transition-normal);
+        }
+
+        [data-theme="dark"] header {
+            background: rgba(30, 41, 59, 0.95);
+        }
+
+        .header-content {
+            max-width: 1200px;
+            margin: 0 auto;
+            display: flex;
+            justify-content: space-between;
+            align-items: center;
+        }
+
+        .logo {
+            display: flex;
+            align-items: center;
+            gap: 0.75rem;
+            font-size: 1.5rem;
+            font-weight: 600;
+            color: var(--text-primary);
+            text-decoration: none;
+        }
+
+        .logo i {
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+            font-size: 1.8rem;
+        }
+
+        .header-actions {
+            display: flex;
+            align-items: center;
+            gap: 1rem;
+        }
+
+        .theme-toggle, .clear-chat, .back-home, .back-analytics {
+            background: transparent;
+            border: none;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+            padding: 0.5rem;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            font-size: 1.2rem;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .theme-toggle:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: var(--primary-color);
+            color: white;
+        }
+
+        .back-home:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: var(--secondary-color);
+            color: white;
+        }
+
+        .back-analytics:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: var(--accent-color);
+            color: white;
+        }
+
+        .clear-chat:hover {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+            background: var(--danger-color);
+            color: white;
+        }
+
+        /* Layout principale */
+        main {
+            flex: 1;
+            max-width: 1200px;
+            margin: 0 auto;
+            width: 100%;
+            padding: 2rem;
+            display: flex;
+            flex-direction: column;
+            height: calc(100vh - 80px);
+        }
+
+        /* Container chat */
+        .chat-container {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            background: var(--bg-secondary);
+            border-radius: var(--radius-lg);
+            box-shadow: var(--shadow-md);
+            overflow: hidden;
+            border: 1px solid var(--border-light);
+        }
+
+        /* Area messaggi */
+        .messages-area {
+            flex: 1;
+            overflow-y: auto;
+            padding: 1.5rem;
+            display: flex;
+            flex-direction: column;
+            gap: 1.5rem;
+            scroll-behavior: smooth;
+        }
+
+        .messages-area::-webkit-scrollbar {
+            width: 8px;
+        }
+
+        .messages-area::-webkit-scrollbar-track {
+            background: var(--bg-tertiary);
+            border-radius: 4px;
+        }
+
+        .messages-area::-webkit-scrollbar-thumb {
+            background: var(--border-medium);
+            border-radius: 4px;
+        }
+
+        .messages-area::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Messaggio singolo */
+        .message {
+            display: flex;
+            gap: 1rem;
+            animation: messageSlideIn 0.4s ease-out;
+            max-width: 85%;
+        }
+
+        .message.user {
+            align-self: flex-end;
+            flex-direction: row-reverse;
+        }
+
+        .message.assistant {
+            align-self: flex-start;
+        }
+
+        .message-avatar {
+            width: 40px;
+            height: 40px;
+            border-radius: 50%;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            font-size: 1.2rem;
+            flex-shrink: 0;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .message.user .message-avatar {
+            background: var(--primary-gradient);
+            color: white;
+        }
+
+        .message.assistant .message-avatar {
+            background: var(--accent-gradient);
+            color: white;
+        }
+
+        .message-content {
+            background: var(--bg-tertiary);
+            padding: 1rem 1.25rem;
+            border-radius: var(--radius-lg);
+            border: 1px solid var(--border-light);
+            position: relative;
+            box-shadow: var(--shadow-sm);
+            transition: all var(--transition-normal);
+        }
+
+        .message.user .message-content {
+            background: var(--bg-user);
+            border-color: var(--primary-color);
+        }
+
+        .message.assistant .message-content {
+            background: var(--bg-assistant);
+            border-color: var(--accent-color);
+        }
+
+        .message-content:hover {
+            box-shadow: var(--shadow-md);
+            transform: translateY(-1px);
+        }
+
+        .message-text {
+            color: var(--text-primary);
+            line-height: 1.6;
+            white-space: pre-wrap;
+            word-wrap: break-word;
+        }
+
+        .message-time {
+            font-size: 0.8rem;
+            color: var(--text-muted);
+            margin-top: 0.5rem;
+            display: block;
+        }
+
+        /* Stato di typing */
+        .typing-indicator {
+            display: none;
+            align-items: center;
+            gap: 0.5rem;
+            color: var(--text-secondary);
+            font-style: italic;
+            margin-left: 3rem;
+        }
+
+        .typing-indicator.active {
+            display: flex;
+        }
+
+        .typing-dots {
+            display: flex;
+            gap: 4px;
+        }
+
+        .typing-dot {
+            width: 8px;
+            height: 8px;
+            border-radius: 50%;
+            background: var(--accent-color);
+            animation: typingPulse 1.4s infinite;
+        }
+
+        .typing-dot:nth-child(2) {
+            animation-delay: 0.2s;
+        }
+
+        .typing-dot:nth-child(3) {
+            animation-delay: 0.4s;
+        }
+
+        /* Area input MIGLIORATA */
+        .input-area {
+            padding: 1.5rem;
+            background: var(--bg-tertiary);
+            border-top: 1px solid var(--border-light);
+        }
+
+        .input-container {
+            display: flex;
+            gap: 1rem;
+            align-items: flex-end;
+            max-width: 100%;
+        }
+
+        .input-wrapper {
+            flex: 1;
+            position: relative;
+            min-height: 48px;
+            display: flex;
+            align-items: center;
+        }
+
+        /* TEXTAREA MIGLIORATA */
+        .message-input {
+            width: 100%;
+            min-height: 48px;
+            max-height: 200px; /* Aumentato per migliore usabilità */
+            padding: 12px 16px;
+            border: 2px solid var(--border-medium);
+            border-radius: var(--radius-md);
+            font-size: 1rem;
+            font-family: inherit;
+            background: var(--bg-secondary);
+            color: var(--text-primary);
+            resize: none;
+            transition: all var(--transition-normal);
+            line-height: 1.5;
+            overflow-y: auto;
+            
+            /* Miglioramenti scroll */
+            scrollbar-width: thin; /* Firefox */
+            scrollbar-color: var(--border-medium) transparent; /* Firefox */
+        }
+
+        /* Scrollbar personalizzata per la textarea */
+        .message-input::-webkit-scrollbar {
+            width: 6px;
+        }
+
+        .message-input::-webkit-scrollbar-track {
+            background: transparent;
+        }
+
+        .message-input::-webkit-scrollbar-thumb {
+            background: var(--border-medium);
+            border-radius: 3px;
+            transition: background var(--transition-fast);
+        }
+
+        .message-input::-webkit-scrollbar-thumb:hover {
+            background: var(--text-muted);
+        }
+
+        /* Focus state migliorato */
+        .message-input:focus {
+            outline: none;
+            border-color: var(--primary-color);
+            box-shadow: 0 0 0 3px rgba(102, 126, 234, 0.1);
+        }
+
+        .message-input:focus::-webkit-scrollbar-thumb {
+            background: var(--primary-color);
+        }
+
+        .message-input::placeholder {
+            color: var(--text-muted);
+        }
+
+        /* Indicatore di lunghezza del messaggio */
+        .input-counter {
+            position: absolute;
+            bottom: -20px;
+            right: 0;
+            font-size: 0.75rem;
+            color: var(--text-muted);
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .input-wrapper:focus-within .input-counter {
+            opacity: 1;
+        }
+
+        .input-counter.warning {
+            color: var(--warning-color);
+        }
+
+        .input-counter.error {
+            color: var(--danger-color);
+        }
+
+        /* Bottone di invio migliorato */
+        .send-button {
+            width: 48px;
+            height: 48px;
+            background: var(--primary-gradient);
+            border: none;
+            border-radius: var(--radius-md);
+            color: white;
+            font-size: 1.2rem;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+            flex-shrink: 0;
+            position: relative;
+            overflow: hidden;
+        }
+
+        .send-button::before {
+            content: '';
+            position: absolute;
+            top: 50%;
+            left: 50%;
+            width: 0;
+            height: 0;
+            background: rgba(255, 255, 255, 0.2);
+            border-radius: 50%;
+            transform: translate(-50%, -50%);
+            transition: all 0.6s ease;
+        }
+
+        .send-button:hover:not(:disabled) {
+            transform: translateY(-2px);
+            box-shadow: var(--shadow-md);
+        }
+
+        .send-button:hover:not(:disabled)::before {
+            width: 100%;
+            height: 100%;
+        }
+
+        .send-button:active {
+            transform: translateY(0);
+        }
+
+        .send-button:disabled {
+            opacity: 0.5;
+            cursor: not-allowed;
+            transform: none;
+        }
+
+        .send-button .spinner {
+            display: none;
+            width: 18px;
+            height: 18px;
+            border: 2px solid transparent;
+            border-top: 2px solid currentColor;
+            border-radius: 50%;
+            animation: spin 1s linear infinite;
+        }
+
+        .send-button.loading .spinner {
+            display: block;
+        }
+
+        .send-button.loading .fa-paper-plane {
+            display: none;
+        }
+
+        /* Indicatore di scroll per la textarea */
+        .input-wrapper::after {
+            content: '';
+            position: absolute;
+            right: 8px;
+            top: 50%;
+            transform: translateY(-50%);
+            width: 2px;
+            height: 20px;
+            background: var(--border-medium);
+            border-radius: 1px;
+            opacity: 0;
+            transition: opacity var(--transition-fast);
+        }
+
+        .input-wrapper.has-scroll::after {
+            opacity: 0.5;
+        }
+
+        /* Stato vuoto */
+        .empty-state {
+            flex: 1;
+            display: flex;
+            flex-direction: column;
+            align-items: center;
+            justify-content: center;
+            text-align: center;
+            padding: 3rem;
+            color: var(--text-secondary);
+        }
+
+        .empty-state .icon {
+            font-size: 4rem;
+            margin-bottom: 1.5rem;
+            background: var(--primary-gradient);
+            -webkit-background-clip: text;
+            -webkit-text-fill-color: transparent;
+            background-clip: text;
+        }
+
+        .empty-state h2 {
+            font-size: 1.5rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .empty-state p {
+            font-size: 1rem;
+            max-width: 400px;
+        }
+
+        /* Suggerimenti iniziali */
+        .suggestions {
+            display: grid;
+            grid-template-columns: repeat(auto-fit, minmax(250px, 1fr));
+            gap: 1rem;
+            margin-top: 2rem;
+            max-width: 800px;
+        }
+
+        .suggestion-card {
+            background: var(--bg-tertiary);
+            border: 1px solid var(--border-light);
+            border-radius: var(--radius-md);
+            padding: 1.25rem;
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            text-align: left;
+        }
+
+        .suggestion-card:hover {
+            transform: translateY(-3px);
+            box-shadow: var(--shadow-lg);
+            border-color: var(--primary-color);
+            background: var(--bg-secondary);
+        }
+
+        .suggestion-card .suggestion-icon {
+            width: 40px;
+            height: 40px;
+            border-radius: var(--radius-sm);
+            background: var(--primary-gradient);
+            color: white;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            margin-bottom: 1rem;
+            font-size: 1.1rem;
+        }
+
+        .suggestion-card h3 {
+            font-size: 1rem;
+            font-weight: 600;
+            margin-bottom: 0.5rem;
+            color: var(--text-primary);
+        }
+
+        .suggestion-card p {
+            font-size: 0.9rem;
+            color: var(--text-secondary);
+        }
+
+        /* Animazioni */
+        @keyframes messageSlideIn {
+            from {
+                opacity: 0;
+                transform: translateY(20px);
+            }
+            to {
+                opacity: 1;
+                transform: translateY(0);
+            }
+        }
+
+        @keyframes typingPulse {
+            0%, 60%, 100% {
+                transform: scale(1);
+                opacity: 0.5;
+            }
+            30% {
+                transform: scale(1.2);
+                opacity: 1;
+            }
+        }
+
+        @keyframes spin {
+            to { transform: rotate(360deg); }
+        }
+
+        /* Responsive design */
+        @media (max-width: 768px) {
+            main {
+                padding: 1rem;
+                height: calc(100vh - 70px);
+            }
+            
+            .header-content {
+                padding: 0 1rem;
+            }
+            
+            .message {
+                max-width: 95%;
+            }
+            
+            .suggestions {
+                grid-template-columns: 1fr;
+            }
+            
+            .input-container {
+                gap: 0.75rem;
+            }
+            
+            .message-input {
+                font-size: 16px; /* Prevent zoom on iOS */
+                max-height: 150px; /* Ridotto per mobile */
+            }
+        }
+
+        /* Accessibilità */
+        .sr-only {
+            position: absolute;
+            width: 1px;
+            height: 1px;
+            padding: 0;
+            margin: -1px;
+            overflow: hidden;
+            clip: rect(0, 0, 0, 0);
+            white-space: nowrap;
+            border: 0;
+        }
+
+        /* Focus states */
+        *:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        button:focus {
+            outline: 2px solid var(--primary-color);
+            outline-offset: 2px;
+        }
+
+        /* Stili per il markdown nel contenuto */
+        .message-text h1, .message-text h2, .message-text h3 {
+            margin: 0.5rem 0;
+            color: var(--text-primary);
+        }
+
+        .message-text p {
+            margin: 0.5rem 0;
+        }
+
+        .message-text code {
+            background: var(--bg-tertiary);
+            padding: 0.25rem 0.5rem;
+            border-radius: 4px;
+            font-family: 'Courier New', monospace;
+            font-size: 0.9em;
+        }
+
+        .message-text pre {
+            background: var(--bg-tertiary);
+            padding: 1rem;
+            border-radius: var(--radius-sm);
+            overflow-x: auto;
+            margin: 0.5rem 0;
+        }
+
+        .message-text ul, .message-text ol {
+            margin: 0.5rem 0;
+            padding-left: 1.5rem;
+        }
+
+        .message-text li {
+            margin: 0.25rem 0;
+        }
+
+        
+    </style>
+</head>
+<body data-theme="dark">
+    <header>
+        <div class="header-content">
+            <a href="" class="logo">
+                <i class="fas fa-robot"></i>
+                Document Assistant
+            </a>
+            <div class="header-actions">
+                
+                <a href="/document/{{ document.id }}" class="back-home" title="Torna alla home" aria-label="Torna al Documento">
+                    <i class="fas fa-home"></i>
+                </a>
+                <a href="/analytics/{{ document.id }}" class="back-analytics" title="Torna all'analisi" aria-label="Torna all'analisi">
+                    <i class="fas fa-chart-line"></i>
+                </a>
+                <button class="clear-chat" id="clear-chat" title="Cancella conversazione">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
+                <button class="theme-toggle" id="theme-toggle" title="Cambia tema">
+                    <i class="fas fa-moon"></i>
+                </button>
+            </div>
+        </div>
+    </header>
+
+    <main>
+        <div class="chat-container">
+            <div class="messages-area" id="messages-area">
+                <div class="empty-state" id="empty-state">
+                    <div class="icon">
+                        <i class="fas fa-comments"></i>
+                    </div>
+                    <h2>Ciao! Come posso aiutarti oggi?</h2>
+                    <p>Sono il tuo assistente AI. Puoi farmi domande su qualsiasi argomento, chiedermi di scrivere testi, analizzare dati o aiutarti con i tuoi progetti.</p>
+                    
+                    <div class="suggestions">
+                        <div class="suggestion-card" onclick="sendSuggestedMessage('Spiegami come funziona l\'intelligenza artificiale in termini semplici')">
+                            <div class="suggestion-icon">
+                                <i class="fas fa-brain"></i>
+                            </div>
+                            <h3>Intelligenza Artificiale</h3>
+                            <p>Spiegami come funziona l'IA in termini semplici</p>
+                        </div>
+                        
+                        <div class="suggestion-card" onclick="sendSuggestedMessage('Aiutami a scrivere un email professionale per richiedere informazioni')">
+                            <div class="suggestion-icon">
+                                <i class="fas fa-envelope"></i>
+                            </div>
+                            <h3>Scrittura Professionale</h3>
+                            <p>Aiutami a scrivere un'email professionale</p>
+                        </div>
+                        
+                        <div class="suggestion-card" onclick="sendSuggestedMessage('Dammi 5 idee creative per un progetto di marketing digitale')">
+                            <div class="suggestion-icon">
+                                <i class="fas fa-lightbulb"></i>
+                            </div>
+                            <h3>Brainstorming</h3>
+                            <p>Idee creative per progetti e soluzioni</p>
+                        </div>
+                        
+                        <div class="suggestion-card" onclick="sendSuggestedMessage('Analizza questo codice Python e suggerisci miglioramenti')">
+                            <div class="suggestion-icon">
+                                <i class="fas fa-code"></i>
+                            </div>
+                            <h3>Programmazione</h3>
+                            <p>Aiuto con codice e sviluppo software</p>
+                        </div>
+                    </div>
+                </div>
+                
+                <div class="typing-indicator" id="typing-indicator">
+                    <i class="fas fa-robot"></i>
+                    <span>L'assistente sta scrivendo</span>
+                    <div class="typing-dots">
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                        <div class="typing-dot"></div>
+                    </div>
+                </div>
+            </div>
+            
+            <div class="input-area">
+                <div class="input-container">
+                    <div class="input-wrapper">
+                        <textarea 
+                            class="message-input" 
+                            id="message-input"
+                            placeholder="Scrivi il tuo messaggio qui..."
+                            rows="1"
+                            aria-label="Scrivi il tuo messaggio"
+                            maxlength="2000"
+                        ></textarea>
+                        <div class="input-counter" id="input-counter">0/2000</div>
+                    </div>
+                    <button class="send-button" id="send-button" aria-label="Invia messaggio">
+                        <i class="fas fa-paper-plane"></i>
+                        <div class="spinner"></div>
+                    </button>
+                </div>
+            </div>
+        </div>
+    </main>
+    <script>
+    
+        document.addEventListener('DOMContentLoaded', function() {
+            // Gestione tema
+            const themeToggle = document.getElementById('theme-toggle');
+            const themeIcon = themeToggle.querySelector('i');
+            
+            const savedTheme = localStorage.getItem('theme') || 'light';
+            document.body.setAttribute('data-theme', savedTheme);
+            updateThemeIcon(savedTheme);
+
+            function updateThemeIcon(theme) {
+                themeIcon.className = theme === 'dark' ? 'fas fa-sun' : 'fas fa-moon';
+            }
+
+            themeToggle.addEventListener('click', function() {
+                const currentTheme = document.body.getAttribute('data-theme');
+                const newTheme = currentTheme === 'dark' ? 'light' : 'dark';
+                
+                document.body.setAttribute('data-theme', newTheme);
+                localStorage.setItem('theme', newTheme);
+                updateThemeIcon(newTheme);
+            });
+        });
+    </script>
 
 </body>
-</html>
