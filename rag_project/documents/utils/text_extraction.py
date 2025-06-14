@@ -205,8 +205,6 @@ class DocumentExtractor:
 
         user_content = self.build_multimodal_message(full_prompt, toc_images)
 
-        logger.debug(f"User content for LLM: {full_prompt}")
-
         response = client.chat.completions.create(
             model="gpt-4o",
             messages=[

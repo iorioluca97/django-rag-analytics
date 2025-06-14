@@ -145,6 +145,9 @@ def analyze_document(request, doc_id):
     
     # Get the document analytics
     analytics = DocumentAnalytics.objects.filter(document=doc).first()
+    #TODO: FIX BUG IMAGES
+    images_extracted = DocumentImage.objects.filter(document=doc)
+    logger.debug(f"IMAGES EXTRACTED: {images_extracted.count()}")
     if analytics:
         # If analytics already exist, render the analytics page
         logger.debug(f"Document analytics found for document ID: {doc.id}, Title: {doc.title}")
@@ -156,9 +159,9 @@ def analyze_document(request, doc_id):
             'reading_time': analytics.reading_time,
             'page_numbers': analytics.page_count,
             'words_count': analytics.words_count,
-            'images_count': analytics.images_extracted_count,
+            'images_count': len(images_extracted),
             'elapsed_time': round((analytics.analyzed_at - doc.uploaded_at).total_seconds(), 2),
-            'images': doc.images.all()
+            'images': images_extracted
         })
 
     # Document does not have analytics, proceed with extraction
@@ -280,6 +283,37 @@ def ask_question(request, doc_id):
             "status_code": 200,
         })
 
+def delete_analytics(request):
+    """
+    Deletes the analytics for a specific document.
+    """
+    try:
+        if request.method == 'DELETE':
+            data = json.loads(request.body)
+            doc_id = data.get('doc_id')
+            if not doc_id:
+                return JsonResponse({'status': 'error', 'message': 'Document ID is required.'}, status=400)
+
+            logger.debug(f"Attempting to delete analytics for document ID: {doc_id}")
+        doc = Document.objects.get(id=doc_id)
+        analytics = DocumentAnalytics.objects.filter(document=doc).first()
+        images = DocumentImage.objects.filter(document=doc)
+        if analytics:
+            analytics.delete()
+            logger.info(f"Deleted analytics for document ID: {doc_id}")
+        if images:
+            images.delete()
+            logger.info(f"Deleted images for document ID: {doc_id}")
+            return JsonResponse({
+                'status_code': 200,
+                'status': 'success', 
+                'message': 'Analytics deleted successfully.', })
+        else:
+            logger.warning(f"No analytics found for document ID: {doc_id}")
+            return render(request, 'documents/upload_error.html', {'error': 'No analytics found for this document.'})
+    except Document.DoesNotExist:
+        logger.error(f"Document with ID {doc_id} does not exist.")
+        return render(request, 'documents/upload_error.html', {'error': 'Document analytics not found.'})
 
 @csrf_exempt
 def save_env_keys(request):

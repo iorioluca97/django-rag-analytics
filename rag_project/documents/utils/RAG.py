@@ -5,6 +5,8 @@ from openai import OpenAI
 from langchain_core.documents import Document
 from .vector_db import MongoDb
 from .logger import logger
+from openai import OpenAI
+import yaml
 
 class RAG:
     def __init__(
@@ -30,48 +32,43 @@ class RAG:
 
         return mock_response
     
-    def _call_llm(self, user_query: str, relevant_docs: list):
-        """
-        Summarizes the given text using OpenAI's GPT model.
-
-        Args:
-            text (str): The text to be summarized.
-            model (str): The OpenAI model to use for summarization. Default is "gpt-3.5-turbo".
-
-        Returns:
-            str: The summarized text.
-        """
+    def _call_llm(self, user_query: str, relevant_docs: list) -> str:
         if not user_query:
-            return "No content to summarize."
-
-        if not os.getenv("OPENAI_API_KEY"):
-            raise ValueError("OpenAI API key is not set. Please check your environment variables.")
-
-        client = OpenAI(api_key=os.getenv("OPENAI_API_KEY"))
+            return "No query provided."
 
         if not relevant_docs:
             logger.warning("No relevant documents found for the query.")
-            return [{"text": "No relevant documents found for the query."}]
-
-        # Prepare the payload for the OpenAI API
-        messages = [{"role": "system", "content": "You are an advanced RAG assistant. Your task is to provide accurate and concise answers based on the provided documents."},
-                    {"role": "user", "content": user_query},
-                    # You can include relevant documents in the prompt if needed
-                    {"role": "user", "content": "Here are some relevant documents to consider:"},
-                    {"role": "user", "content": "\n".join([doc['text'] for doc in relevant_docs])}
-                ]
-        
-        logger.debug(f"Calling OpenAI API with messages: {messages}")
+            return "No relevant documents found for the query."
 
         try:
-            response = client.chat.completions.create(
+            prompt_parts = self._load_prompt_template()
+
+            documents_content = "\n\n".join([doc.get('text', '') for doc in relevant_docs])
+            
+
+            messages = [
+                {"role": "system", "content": prompt_parts['system']},
+                {"role": "user", "content": f"{prompt_parts['user_intro']}\n\n{user_query}"},
+                {"role": "user", "content": f"{prompt_parts['document_intro']}\n\n{documents_content}"}
+            ]
+
+            logger.debug("Calling OpenAI API with structured prompt.")
+            logger.debug(f"Messages: {messages}")
+            response = self.llm_client.chat.completions.create(
                 model="gpt-4o",
                 messages=messages,
-                temperature=.4,
+                temperature=0.4
             )
+
+            return response.choices[0].message.content.strip()
+
         except Exception as e:
-            logger.error(f"Error during OpenAI API call: {e}")
+            logger.error(f"OpenAI API call failed: {e}")
+            return "An error occurred while generating the response."
 
-        summary = response.choices[0].message.content
-        return summary
-
+    def _load_prompt_template(self):
+        with open("./rag_project/documents/utils/rag_prompt.yaml", "r") as f:
+            prompt_template = yaml.safe_load(f)
+        if not prompt_template:
+            raise ValueError("Prompt template is empty or not found.")
+        return prompt_template

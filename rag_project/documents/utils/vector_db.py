@@ -42,9 +42,9 @@ class MongoDb:
         # Send a ping to confirm a successful connection
         try:
             self.client.admin.command("ping")
-            logger.debug(
-                "Pinged your deployment. You successfully connected to MongoDB!"
-            )
+            # logger.debug(
+            #     "Pinged your deployment. You successfully connected to MongoDB!"
+            # )
         except Exception as e:
             logger.error(e)
 
@@ -67,32 +67,28 @@ class MongoDb:
 
     def query(self, query_text: str, top_k: int = 5):
         try:
-            # Generate query embedding
+            # Genera embedding della query
             query_embedding = self.embedding_model.embed_query(query_text.lower())
 
-            # Cosine similarity function
+            # Cosine similarity
             def cosine_similarity(vec1, vec2):
-                return np.dot(vec1, vec2) / (
-                    np.linalg.norm(vec1) * np.linalg.norm(vec2)
-                )
+                return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
 
-            # Get all documents
-            all_documents = list(self.collection.find({}))
+            # Recupera tutti i documenti con embedding
+            all_documents = list(self.collection.find({"embedding": {"$exists": True}}))
 
-            # Calculate scores for each document
             results = []
             for doc in all_documents:
-                doc = self.collection.find_one()
-                score = cosine_similarity(query_embedding, np.array(doc["embedding"]))
-                results.append(
-                    {
-                        "page": doc["page"],
-                        "text": doc["text"],
-                        "score": score,
-                    }
-                )
+                embedding = np.array(doc["embedding"])
+                score = cosine_similarity(query_embedding, embedding)
 
-            # Sort by score and get top_k
+                results.append({
+                    "page": doc.get("page"),
+                    "text": doc.get("text"),
+                    "score": score
+                })
+
+            # Ordina e restituisce i migliori
             results.sort(key=lambda x: x["score"], reverse=True)
             return results[:top_k]
 
@@ -160,7 +156,8 @@ class MongoDb:
     def index_chunks(self, chunks: List[Document], doc):
         logger.info(f"Indexing {len(chunks)} chunks for document ID: {doc.id}")
 
-        for chunk in chunks:
+        for i, chunk in enumerate(chunks):
+            logger.debug(f"Indexing chunk {i + 1}/{len(chunks)}...")
             try:
                 # Generate embedding for the chunk
                 embedding = self.embedding_model.embed_documents([chunk.page_content])[0]
