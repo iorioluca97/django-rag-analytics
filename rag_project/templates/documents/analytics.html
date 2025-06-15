@@ -975,6 +975,91 @@
         background: var(--danger-color);
         color: white;
     }
+
+    /* Stili per le tabelle */
+.tables-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.table-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.table-header {
+    background: #f8f9fa;
+    padding: 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.table-header:hover {
+    background: #e9ecef;
+}
+
+.table-info h3 {
+    margin: 0 0 0.25rem 0;
+    color: #333;
+}
+
+.table-size {
+    font-size: 0.875rem;
+    color: #666;
+}
+
+.toggle-icon {
+    transition: transform 0.2s;
+}
+
+.toggle-icon.rotated {
+    transform: rotate(180deg);
+}
+
+.table-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.table-content.expanded {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-wrapper {
+    padding: 1rem;
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.data-table th,
+.data-table td {
+    padding: 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.data-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.data-table tr:hover {
+    background: #9b9c9d;
+}
     
 
     </style>
@@ -1142,6 +1227,61 @@
                 </div>
                 {% endif %}
             </div>
+
+
+<!-- Sezione Tabelle -->
+<div class="analytics-card">
+    <div class="card-header">
+        <div class="card-icon"><i class="fas fa-table"></i></div>
+        <h2>Tabelle Estratte:  {{ tables_count }}</h2>
+    </div>
+    
+    {% if tables %}
+    <div class="tables-container">
+        {% for table in tables %}
+        <div class="table-item">
+            <div class="table-header" onclick="toggleTable('{{ table.table_id }}')">
+                <div class="table-info">
+                    <h3>{{ table.table_id|title }}</h3>
+                    <span class="table-size">{{ table.data|length }} righe</span>
+                </div>
+                <i class="fas fa-chevron-down toggle-icon" id="icon-{{ table.table_id }}"></i>
+            </div>
+            <div class="table-content" id="content-{{ table.table_id }}" style="display: none;">
+                <div class="table-wrapper">
+                    {% if table.data %}
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                {% for key, value in table.data.0.items %}
+                                <th>{{ key }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in table.data %}
+                            <tr>
+                                {% for key, value in row.items %}
+                                <td>{{ value|default:"" }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon"><i class="far fa-table"></i></div>
+        <h3>Nessuna Tabella Trovata</h3>
+        <p>Il documento non contiene tabelle estraibili o l'analisi non ha rilevato strutture tabulari.</p>
+    </div>
+    {% endif %}
+</div>
         </section>
     </main>
 
@@ -1260,6 +1400,21 @@
         });
     });
 });
+
+function toggleTable(tableId) {
+    const content = document.getElementById(`content-${tableId}`);
+    const icon = document.getElementById(`icon-${tableId}`);
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        content.classList.add('expanded');
+        icon.classList.add('rotated');
+    } else {
+        content.style.display = 'none';
+        content.classList.remove('expanded');
+        icon.classList.remove('rotated');
+    }
+}
     </script>
 </body>
 </html>

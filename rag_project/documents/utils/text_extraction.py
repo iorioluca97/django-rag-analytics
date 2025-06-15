@@ -16,6 +16,10 @@ import pdfplumber
 import json
 import re
 import ast
+import pandas as pd
+from pathlib import Path
+from typing import List, Dict, Optional, Union
+import logging
 
 class DocumentExtractor:
     def __init__(self, document_bytes: bytes):
@@ -119,7 +123,7 @@ class DocumentExtractor:
         toc_text = None
 
         # Start from the second page to avoid the first page which is often a cover
-        for page_num in range(0, 10):
+        for page_num in range(0, min(10, self.page_count)):
             # Search for a common start of TOC
             page = doc.load_page(page_num)
             text = page.get_text("text")
@@ -469,6 +473,7 @@ class DocumentExtractor:
                 return None
 
             return {
+                "raw_bytes": base_image["image"],
                 "base64_data": base64.b64encode(base_image["image"]).decode(),
                 "filename": f"page{page_num}_img{img_idx}.{base_image['ext']}",
                 "format": base_image["ext"],
@@ -582,3 +587,173 @@ class DocumentExtractor:
         except Exception as e:
             logger.error(f"Error detecting language: {e}")
             return "???"
+
+
+    def extract_tables(
+        self,
+        doc_bytes: bytes,
+        min_words_in_row: int = 1,
+        table_settings: Optional[Dict] = None,
+    ) -> Optional[List[pd.DataFrame]]:
+        """
+        Estrae tutte le tabelle da un file PDF con opzioni avanzate.
+        
+        Args:
+            pdf_path: Percorso del file PDF
+            min_words_in_row: Numero minimo di celle non vuote per considerare valida una riga
+            table_settings: Impostazioni personalizzate per l'estrazione delle tabelle
+        
+        Returns:
+            Lista di DataFrame se output_format è "dataframe", altrimenti None
+        """
+
+        
+        # Impostazioni default per l'estrazione delle tabelle
+        default_table_settings = {
+            "vertical_strategy": "lines",
+            "horizontal_strategy": "lines",
+            "snap_tolerance": 3,
+            "snap_x_tolerance": 3,
+            "snap_y_tolerance": 3,
+            "join_tolerance": 3,
+            "edge_min_length": 3,
+            "min_words_vertical": 3,
+            "min_words_horizontal": 3,
+            "intersection_tolerance": 3,
+            "text_tolerance": 3,
+            "text_x_tolerance": 3,
+            "text_y_tolerance": 3,
+        }
+        
+        if table_settings:
+            default_table_settings.update(table_settings)
+        
+        all_dataframes = []
+        all_jsons = []
+        total_tables = 0
+        
+        try:
+            pdf_source = io.BytesIO(doc_bytes)  # Wrappa i bytes in BytesIO
+            logger.info(f"Elaborazione PDF da bytes ({len(doc_bytes)} bytes)")
+            with pdfplumber.open(pdf_source) as pdf:
+
+                for page_num, page in enumerate(pdf.pages, 1):
+                    logger.info(f"Analisi pagina {page_num}/{len(pdf.pages)}")
+                    
+                    # Estrai tabelle con impostazioni personalizzate
+                    tables = page.extract_tables(table_settings=default_table_settings)
+                    
+                    if not tables:
+                        logger.info(f"Nessuna tabella trovata nella pagina {page_num}")
+                        continue
+                    
+                    for table_num, table in enumerate(tables, 1):
+                        total_tables += 1
+                        
+                        # Filtra righe vuote e pulisci i dati
+                        cleaned_table = self.clean_table_data(table, min_words_in_row)
+                        
+                        if not cleaned_table:
+                            logger.warning(f"Tabella {table_num} nella pagina {page_num} è vuota dopo la pulizia")
+                            continue
+                        
+                        # Crea DataFrame
+                        df = self.create_dataframe_from_table(cleaned_table)
+                        df_json = df.to_json(orient='records', force_ascii=False, indent=2)
+                        all_jsons.append({
+                            "table_id": f"pagina_{page_num}_tabella_{table_num}",
+                            "data": json.loads(df_json)
+                        })
+                        
+    
+                        all_dataframes.append(df)
+                        logger.info(f"Tabella {table_num} elaborata - Dimensioni: {df.shape}")
+                
+                logger.info(f"Elaborazione completata. Totale tabelle trovate: {total_tables}")                
+                return all_dataframes, all_jsons
+                    
+        except Exception as e:
+            logger.error(f"Errore durante l'elaborazione del PDF: {str(e)}")
+            return None
+
+    def clean_table_data(
+            self, table: List[List], 
+            min_words_in_row: int = 3,
+            min_table_length: int = 4) -> List[List]:
+        """
+        Pulisce i dati della tabella rimuovendo righe vuote e normalizzando i valori.
+        """
+        cleaned_table = []
+
+        if len(table) < min_table_length:
+            logger.warning(f"La tabella ha meno di {min_table_length} righe, non viene elaborata.")
+            return cleaned_table
+        
+        for row in table:
+            # Converte None in stringhe vuote e pulisce gli spazi
+            cleaned_row = []
+            for cell in row:
+                if cell is None:
+                    cleaned_row.append("")
+                else:
+                    # Rimuove spazi extra e caratteri di controllo
+                    cleaned_cell = str(cell).strip().replace('\n', ' ').replace('\r', '')
+                    cleaned_row.append(cleaned_cell)
+            
+            # Conta celle non vuote
+            non_empty_cells = sum(1 for cell in cleaned_row if cell.strip())
+            
+            # Mantieni la riga solo se ha abbastanza contenuto
+            if non_empty_cells >= min_words_in_row:
+                cleaned_table.append(cleaned_row)
+        
+        return cleaned_table
+
+    def create_dataframe_from_table(self, table: List[List]) -> pd.DataFrame:
+        """
+        Crea un DataFrame pandas da una tabella pulita.
+        """
+        if not table:
+            return pd.DataFrame()
+        
+        # Se la prima riga sembra essere un header (contiene più testo)
+        if len(table) > 1:
+            first_row_text_length = sum(len(str(cell)) for cell in table[0])
+            avg_row_text_length = sum(sum(len(str(cell)) for cell in row) for row in table[1:]) / len(table[1:])
+            
+            if first_row_text_length > avg_row_text_length * 0.8:  # Prima riga probabilmente è header
+                headers = [f"Col_{i}" if not str(cell).strip() else str(cell) for i, cell in enumerate(table[0])]
+                df = pd.DataFrame(table[1:], columns=headers)
+            else:
+                df = pd.DataFrame(table)
+        else:
+            df = pd.DataFrame(table)
+        
+        # Rimuovi colonne completamente vuote
+        df = df.dropna(axis=1, how='all')
+        
+        return df
+
+    def save_table(self, df: pd.DataFrame, format_type: str, output_dir: Path, 
+                   base_name: str, table_id: Optional[str] = None):
+        """
+        Salva la tabella nel formato specificato.
+        """
+        if table_id:
+            filename = f"{base_name}_{table_id}"
+        else:
+            filename = f"{base_name}_all_tables"
+        
+        filepath = output_dir / f"{filename}.{format_type}"
+        
+        try:
+            if format_type == "csv":
+                df.to_csv(filepath, index=False, encoding='utf-8')
+            elif format_type == "excel":
+                df.to_excel(filepath, index=False)
+            elif format_type == "json":
+                df.to_json(filepath, orient='records', indent=2, force_ascii=False)
+            
+            logging.info(f"Tabella salvata: {filepath}")
+        except Exception as e:
+            logging.error(f"Errore nel salvataggio di {filepath}: {str(e)}")

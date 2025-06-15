@@ -14,7 +14,7 @@ class Document(models.Model):
     
 class DocumentImage(models.Model):
     document = models.ForeignKey(Document, related_name='images', on_delete=models.CASCADE)
-    image = models.ImageField(upload_to='images/')
+    image = models.BinaryField()  # salva i bytes dell'immagine
     page_number = models.PositiveIntegerField()
     extracted_at = models.DateTimeField(auto_now_add=True)
 

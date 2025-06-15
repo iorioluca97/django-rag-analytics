@@ -95,10 +95,6 @@ def summarize_document(request, doc_id):
         "temperature": float(request.POST.get('temperature', 0.5)),  # valore default 0.5
         "length": request.POST.get('length', 'short'),  # valore default 'short'
         "focus_areas": request.POST.get('focus_areas', None),
-        # "style": request.POST.get('style'),
-        # "include_quotes": True if 'include_quotes' in request.POST else False,
-        # "bullet_points": True if 'bullet_points' in request.POST else False,
-        # "include_stats": True if 'include_stats' in request.POST else False
     }
     
     doc = Document.objects.get(id=doc_id)
@@ -143,14 +139,21 @@ def analyze_document(request, doc_id):
 
     doc = Document.objects.get(id=doc_id) or render(request, 'documents/upload_error.html', {'error': 'Document not found.'})
     
+
     # Get the document analytics
     analytics = DocumentAnalytics.objects.filter(document=doc).first()
-    #TODO: FIX BUG IMAGES
-    images_extracted = DocumentImage.objects.filter(document=doc)
-    logger.debug(f"IMAGES EXTRACTED: {images_extracted.count()}")
     if analytics:
         # If analytics already exist, render the analytics page
         logger.debug(f"Document analytics found for document ID: {doc.id}, Title: {doc.title}")
+
+        doc_extractor = DocumentExtractor(doc.raw_bytes)
+        dfs_extracted, jsons_extracted = doc_extractor.extract_tables(
+            doc.raw_bytes, min_words_in_row=1)
+
+        if jsons_extracted:
+            logger.debug(f"Extracted {len(jsons_extracted)} tables from the document.")
+        images_extracted = doc_extractor.extract_images()
+
         return render(request, 'documents/analytics.html', {
             'document': doc,
             'toc': analytics.toc,
@@ -161,7 +164,9 @@ def analyze_document(request, doc_id):
             'words_count': analytics.words_count,
             'images_count': len(images_extracted),
             'elapsed_time': round((analytics.analyzed_at - doc.uploaded_at).total_seconds(), 2),
-            'images': images_extracted
+            'images': images_extracted,
+            'tables_count': len(jsons_extracted),
+            'tables': jsons_extracted,
         })
 
     # Document does not have analytics, proceed with extraction
@@ -179,11 +184,17 @@ def analyze_document(request, doc_id):
         page_numbers = doc_extractor.page_count
         words_count = doc_extractor.get_words_count(full_text)
         images_extracted = doc_extractor.extract_images()
+        dfs_extracted, jsons_extracted = doc_extractor.extract_tables(
+            doc.raw_bytes, min_words_in_row=1)
+
+        if jsons_extracted:
+            logger.debug(f"Extracted {len(jsons_extracted)} tables from the document.")
+        logger.debug(f"Extracted {len(dfs_extracted)} tables from the document.")
 
         for i, image in enumerate(images_extracted, start=1):
-            image_name = f"image_{i}_page_{image['page_number']}.png"
+            # Save the image as a binary field
             DocumentImage.objects.create(
-                image=ContentFile(image["base64_data"], name=image_name),
+                image=image["raw_bytes"],
                 document=doc,
                 page_number=image['page_number']
             )
@@ -237,6 +248,8 @@ def analyze_document(request, doc_id):
             'elapsed_time': round(elapsed_time, 2),
             'reading_time': reading_time,
             'language': language.upper(),
+            'tables_count': len(jsons_extracted),
+            'tables': jsons_extracted,
 
         })
     except Exception as e:
