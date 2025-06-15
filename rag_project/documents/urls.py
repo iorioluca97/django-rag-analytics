@@ -24,6 +24,11 @@ urlpatterns = [
     path('analytics/<int:doc_id>/', views.analyze_document, name='analyze_document'),
     # URL per salvare le chiavi dell'ambiente
     path('save-env-keys/', views.save_env_keys, name='save_env_keys'),
+    # URL per inviare un messaggio
+    path("chat/<int:doc_id>/ask-question/", views.ask_question, name="ask-question"),
+    # URL per cancellare analisi documento
+    path('delete-document-analytics/', views.delete_analytics, name='delete_analytics')
+
 
 
 ]

@@ -9,7 +9,7 @@ class DocumentAdmin(admin.ModelAdmin):
 
 @admin.register(DocumentImage)
 class DocumentImageAdmin(admin.ModelAdmin):
-    list_display = ('id', 'image')
+    list_display = ('id', 'image', 'document', 'page_number', 'extracted_at')
 
 @admin.register(Entity)
 class EntityAdmin(admin.ModelAdmin):

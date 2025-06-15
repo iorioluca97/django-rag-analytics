@@ -42,9 +42,9 @@ class MongoDb:
         # Send a ping to confirm a successful connection
         try:
             self.client.admin.command("ping")
-            logger.debug(
-                "Pinged your deployment. You successfully connected to MongoDB!"
-            )
+            # logger.debug(
+            #     "Pinged your deployment. You successfully connected to MongoDB!"
+            # )
         except Exception as e:
             logger.error(e)
 
@@ -65,6 +65,37 @@ class MongoDb:
             return getattr(collection, name)
         raise AttributeError(f"'{self.__class__.__name__}' object has no attribute '{name}'")
 
+    def query(self, query_text: str, top_k: int = 5):
+        try:
+            # Genera embedding della query
+            query_embedding = self.embedding_model.embed_query(query_text.lower())
+
+            # Cosine similarity
+            def cosine_similarity(vec1, vec2):
+                return np.dot(vec1, vec2) / (np.linalg.norm(vec1) * np.linalg.norm(vec2))
+
+            # Recupera tutti i documenti con embedding
+            all_documents = list(self.collection.find({"embedding": {"$exists": True}}))
+
+            results = []
+            for doc in all_documents:
+                embedding = np.array(doc["embedding"])
+                score = cosine_similarity(query_embedding, embedding)
+
+                results.append({
+                    "page": doc.get("page"),
+                    "text": doc.get("text"),
+                    "score": score
+                })
+
+            # Ordina e restituisce i migliori
+            results.sort(key=lambda x: x["score"], reverse=True)
+            return results[:top_k]
+
+        except Exception as e:
+            print(f"Errore durante l'esecuzione della query: {e}")
+            return []
+        
     def query_with_keyword_filter(
         self, query_text: str, top_k: int = 5, keyword_filter: List[str] = None
     ):
@@ -125,8 +156,8 @@ class MongoDb:
     def index_chunks(self, chunks: List[Document], doc):
         logger.info(f"Indexing {len(chunks)} chunks for document ID: {doc.id}")
 
-        for chunk in chunks:
-            logger.info(chunk)
+        for i, chunk in enumerate(chunks):
+            logger.debug(f"Indexing chunk {i + 1}/{len(chunks)}...")
             try:
                 # Generate embedding for the chunk
                 embedding = self.embedding_model.embed_documents([chunk.page_content])[0]

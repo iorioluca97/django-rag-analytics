@@ -950,6 +950,118 @@
             text-transform: uppercase;
         }
 
+        .delete-document-analytics {
+            background: transparent;
+            border: none;
+            background: var(--bg-secondary);
+            border: 1px solid var(--border-light);
+            color: var(--text-primary);
+            padding: 0.5rem;
+            border-radius: var(--radius-md);
+            cursor: pointer;
+            transition: all var(--transition-normal);
+            font-size: 1.2rem;
+            width: 44px;
+            height: 44px;
+            display: flex;
+            align-items: center;
+            justify-content: center;
+            box-shadow: var(--shadow-sm);
+        }
+
+        .delete-document-analytics:hover {
+        transform: translateY(-2px);
+        box-shadow: var(--shadow-md);
+        background: var(--danger-color);
+        color: white;
+    }
+
+    /* Stili per le tabelle */
+.tables-container {
+    display: flex;
+    flex-direction: column;
+    gap: 1rem;
+}
+
+.table-item {
+    border: 1px solid #e0e0e0;
+    border-radius: 8px;
+    overflow: hidden;
+}
+
+.table-header {
+    background: #f8f9fa;
+    padding: 1rem;
+    cursor: pointer;
+    display: flex;
+    justify-content: space-between;
+    align-items: center;
+    transition: background-color 0.2s;
+}
+
+.table-header:hover {
+    background: #e9ecef;
+}
+
+.table-info h3 {
+    margin: 0 0 0.25rem 0;
+    color: #333;
+}
+
+.table-size {
+    font-size: 0.875rem;
+    color: #666;
+}
+
+.toggle-icon {
+    transition: transform 0.2s;
+}
+
+.toggle-icon.rotated {
+    transform: rotate(180deg);
+}
+
+.table-content {
+    max-height: 0;
+    overflow: hidden;
+    transition: max-height 0.3s ease;
+}
+
+.table-content.expanded {
+    max-height: 500px;
+    overflow-y: auto;
+}
+
+.table-wrapper {
+    padding: 1rem;
+    overflow-x: auto;
+}
+
+.data-table {
+    width: 100%;
+    border-collapse: collapse;
+    font-size: 0.875rem;
+}
+
+.data-table th,
+.data-table td {
+    padding: 0.5rem;
+    text-align: left;
+    border-bottom: 1px solid #e0e0e0;
+}
+
+.data-table th {
+    background: #f8f9fa;
+    font-weight: 600;
+    position: sticky;
+    top: 0;
+}
+
+.data-table tr:hover {
+    background: #9b9c9d;
+}
+    
+
     </style>
 </head>
 <body data-theme="light">
@@ -964,6 +1076,9 @@
                     <i class="fas fa-comments"></i>
                     <span class="btn-text">Q&A al Documento</span>
                 </a>
+                <button class="header-btn delete-document-analytics" id="delete-document-analytics" title="Cancella Analisi Documento">
+                    <i class="fas fa-trash-alt"></i>
+                </button>
                 <button class="header-btn theme-toggle" id="theme-toggle" title="Cambia tema">
                     <i class="fas fa-moon"></i>
                 </button>
@@ -1051,30 +1166,31 @@
         <section class="main-analytics">
             
             <div class="analytics-card">
-                <div class="card-header">
-                    <div class="card-icon"><i class="fas fa-list-alt"></i></div>
-                    <h2>Sommario del Documento</h2>
-                </div>
-                
-                {% if toc %}
-                <div class="toc-content">
-                    <ul class="toc-list">
-                        {% for item in toc %}
-                            <li class="toc-item level-{{ item.level }}">
-                                <span class="toc-text">{{ item.text }}</span>
-                                <span class="toc-page">Pag. {{ item.page }}</span>
-                            </li>
-                        {% endfor %}
-                    </ul>
-                </div>
-                {% else %}
-                <div class="empty-state">
-                    <div class="icon"><i class="far fa-file-excel"></i></div>
-                    <h3>Nessun Sommario Disponibile</h3>
-                    <p>Il sommario (ToC) per questo documento non è stato generato o non è stato trovato.</p>
-                </div>
-                {% endif %}
-            </div>
+    <div class="card-header toggle-header" data-toggle="toc-content">
+        <div class="card-icon"><i class="fas fa-list-alt"></i></div>
+        <h2>Sommario del Documento</h2>
+        <div class="toggle-icon"><i class="fas fa-chevron-down"></i></div>
+    </div>
+
+    {% if toc %}
+    <div class="toc-content" style="display: none;">
+        <ul class="toc-list">
+            {% for item in toc %}
+                <li class="toc-item level-{{ item.level }}">
+                    <span class="toc-text">{{ item.text }}</span>
+                    <span class="toc-page">Pag. {{ item.page }}</span>
+                </li>
+            {% endfor %}
+        </ul>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon"><i class="far fa-file-excel"></i></div>
+        <h3>Nessun Sommario Disponibile</h3>
+        <p>Il sommario (ToC) per questo documento non è stato generato o non è stato trovato.</p>
+    </div>
+    {% endif %}
+</div>
 
             <div class="analytics-card">
                 <div class="card-header">
@@ -1111,6 +1227,61 @@
                 </div>
                 {% endif %}
             </div>
+
+
+<!-- Sezione Tabelle -->
+<div class="analytics-card">
+    <div class="card-header">
+        <div class="card-icon"><i class="fas fa-table"></i></div>
+        <h2>Tabelle Estratte:  {{ tables_count }}</h2>
+    </div>
+    
+    {% if tables %}
+    <div class="tables-container">
+        {% for table in tables %}
+        <div class="table-item">
+            <div class="table-header" onclick="toggleTable('{{ table.table_id }}')">
+                <div class="table-info">
+                    <h3>{{ table.table_id|title }}</h3>
+                    <span class="table-size">{{ table.data|length }} righe</span>
+                </div>
+                <i class="fas fa-chevron-down toggle-icon" id="icon-{{ table.table_id }}"></i>
+            </div>
+            <div class="table-content" id="content-{{ table.table_id }}" style="display: none;">
+                <div class="table-wrapper">
+                    {% if table.data %}
+                    <table class="data-table">
+                        <thead>
+                            <tr>
+                                {% for key, value in table.data.0.items %}
+                                <th>{{ key }}</th>
+                                {% endfor %}
+                            </tr>
+                        </thead>
+                        <tbody>
+                            {% for row in table.data %}
+                            <tr>
+                                {% for key, value in row.items %}
+                                <td>{{ value|default:"" }}</td>
+                                {% endfor %}
+                            </tr>
+                            {% endfor %}
+                        </tbody>
+                    </table>
+                    {% endif %}
+                </div>
+            </div>
+        </div>
+        {% endfor %}
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon"><i class="far fa-table"></i></div>
+        <h3>Nessuna Tabella Trovata</h3>
+        <p>Il documento non contiene tabelle estraibili o l'analisi non ha rilevato strutture tabulari.</p>
+    </div>
+    {% endif %}
+</div>
         </section>
     </main>
 
@@ -1176,6 +1347,74 @@
                 closeImageModal();
             }
         });
+        const clearChatButton = document.getElementById('delete-document-analytics');
+        clearChatButton.addEventListener('click', function() {
+            // Logica per cancellare l'analisi del documento
+            console.log('Cancellazione analisi documento avviata...');
+        }); 
+        // Aggiungi qui la logica per cancellare l'analisi del documento
+        // Esempio di logica per cancellare l'analisi del documento
+        clearChatButton.addEventListener('click', function() {
+            if (confirm('Sei sicuro di voler cancellare l\'analisi di questo documento?')) {
+                // Esegui la richiesta per cancellare l'analisi
+                fetch(`/delete-document-analytics/`, {
+                    method: 'DELETE',
+                    headers: {
+                        'Content-Type': 'application/json',
+                        'X-CSRFToken': '{{ csrf_token }}'
+                    },
+                    body: JSON.stringify({ doc_id: '{{ document.id }}' })
+                })
+                .then(response => {
+                    if (response.ok) {
+                        alert('Analisi del documento cancellata con successo.');
+                        window.location.href = '/document/{{ document.id }}/';
+                    } else {
+                        alert('Errore durante la cancellazione dell\'analisi del documento.');
+                    }
+                })
+                .catch(error => {
+                    console.error('Errore:', error);
+                    alert('Si è verificato un errore durante la cancellazione dell\'analisi del documento.');
+                });
+            }
+        });
+        document.addEventListener("DOMContentLoaded", function () {
+    const toggleHeaders = document.querySelectorAll(".toggle-header");
+
+    toggleHeaders.forEach(header => {
+        header.addEventListener("click", () => {
+            const targetClass = header.getAttribute("data-toggle");
+            const container = header.closest(".analytics-card");
+            const target = container.querySelector(`.${targetClass}`);
+            const icon = header.querySelector(".toggle-icon i");
+
+            if (target) {
+                const isVisible = target.style.display !== "none";
+                target.style.display = isVisible ? "none" : "block";
+                if (icon) {
+                    icon.classList.toggle("fa-chevron-down", !isVisible);
+                    icon.classList.toggle("fa-chevron-up", isVisible);
+                }
+            }
+        });
+    });
+});
+
+function toggleTable(tableId) {
+    const content = document.getElementById(`content-${tableId}`);
+    const icon = document.getElementById(`icon-${tableId}`);
+    
+    if (content.style.display === 'none') {
+        content.style.display = 'block';
+        content.classList.add('expanded');
+        icon.classList.add('rotated');
+    } else {
+        content.style.display = 'none';
+        content.classList.remove('expanded');
+        icon.classList.remove('rotated');
+    }
+}
     </script>
 </body>
 </html>
