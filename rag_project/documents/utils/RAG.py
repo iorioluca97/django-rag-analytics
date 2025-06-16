@@ -7,6 +7,10 @@ from .vector_db import MongoDb
 from .logger import logger
 from openai import OpenAI
 import yaml
+from pathlib import Path
+
+BASE_DIR = Path(__file__).resolve().parent
+yaml_path = BASE_DIR / "rag_prompt.yaml"
 
 class RAG:
     def __init__(
@@ -67,7 +71,9 @@ class RAG:
             return "An error occurred while generating the response."
 
     def _load_prompt_template(self):
-        with open("./rag_project/documents/utils/rag_prompt.yaml", "r") as f:
+        import os
+        logger.info(os.getcwd())
+        with open(yaml_path, "r") as f:
             prompt_template = yaml.safe_load(f)
         if not prompt_template:
             raise ValueError("Prompt template is empty or not found.")
