@@ -642,7 +642,7 @@
 
         .image-info .image-details {
             font-size: 0.85rem;
-            color: var(--text-secondary);
+            color: var(--bg-primary);
         }
         
         .summary-meta {
@@ -1051,7 +1051,7 @@
 }
 
 .data-table th {
-    background: #f8f9fa;
+    background: var(--primary-gradient);
     font-weight: 600;
     position: sticky;
     top: 0;
@@ -1251,23 +1251,23 @@
                 <div class="table-wrapper">
                     {% if table.data %}
                     <table class="data-table">
-                        <thead>
-                            <tr>
-                                {% for key, value in table.data.0.items %}
-                                <th>{{ key }}</th>
-                                {% endfor %}
-                            </tr>
-                        </thead>
-                        <tbody>
-                            {% for row in table.data %}
-                            <tr>
-                                {% for key, value in row.items %}
-                                <td>{{ value|default:"" }}</td>
-                                {% endfor %}
-                            </tr>
-                            {% endfor %}
-                        </tbody>
-                    </table>
+    <thead>
+        <tr>
+            {% for key, value in table.data.0.items %}
+            <th>{{ value }}</th>  {# Usa i valori della prima riga come intestazioni #}
+            {% endfor %}
+        </tr>
+    </thead>
+    <tbody>
+        {% for row in table.data|slice:"1:" %}  {# Salta la prima riga (già usata come header) #}
+        <tr>
+            {% for key, value in row.items %}
+            <td>{{ value|default:"" }}</td>
+            {% endfor %}
+        </tr>
+        {% endfor %}
+    </tbody>
+</table>
                     {% endif %}
                 </div>
             </div>

@@ -154,6 +154,8 @@ def analyze_document(request, doc_id):
             logger.debug(f"Extracted {len(jsons_extracted)} tables from the document.")
         images_extracted = doc_extractor.extract_images()
 
+        logger.debug(jsons_extracted)
+
         return render(request, 'documents/analytics.html', {
             'document': doc,
             'toc': analytics.toc,

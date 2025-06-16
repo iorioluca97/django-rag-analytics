@@ -139,7 +139,7 @@ class DocumentExtractor:
                 break
         if toc_page_number is None:
             logger.warning("No starting point for TOC found in the first 10 pages.")
-            return "Not found any TOC", 0
+            return None, None
 
         # Extract text from the TOC page
         toc_page = doc.load_page(toc_page_number)
@@ -183,7 +183,7 @@ class DocumentExtractor:
                 {"level": 1, "text": "First Header", "page": 2}
             ],
             "toc_page_num": toc_page_num if toc_page_num is not None else "Not found",  # Use 0 if no TOC page found
-            "toc_text": toc_text.strip() if toc_text else "",
+            "toc_text": toc_text.strip() if toc_text else "No text found",
 
         }
 
@@ -676,6 +676,22 @@ class DocumentExtractor:
             logger.error(f"Errore durante l'elaborazione del PDF: {str(e)}")
             return None
 
+    def is_table_significant(self, table, min_table_length=4, min_non_empty_cells=5):
+        if len(table) < min_table_length:
+            logger.warning(f"La tabella ha meno di {min_table_length} righe, non viene elaborata.")
+            return False
+
+        # Conta le celle non vuote (né None né stringhe vuote)
+        non_empty_cells = sum(
+            1 for row in table for cell in row if cell not in (None, '')
+        )
+
+        if non_empty_cells < min_non_empty_cells:
+            logger.warning(f"La tabella ha solo {non_empty_cells} celle non vuote, non viene elaborata.")
+            return False
+
+        return True
+
     def clean_table_data(
             self, table: List[List], 
             min_words_in_row: int = 3,
@@ -683,12 +699,11 @@ class DocumentExtractor:
         """
         Pulisce i dati della tabella rimuovendo righe vuote e normalizzando i valori.
         """
-        cleaned_table = []
-
-        if len(table) < min_table_length:
-            logger.warning(f"La tabella ha meno di {min_table_length} righe, non viene elaborata.")
-            return cleaned_table
         
+        if not self.is_table_significant(table, min_table_length=4, min_non_empty_cells=5):
+            return None
+        
+        cleaned_table = []
         for row in table:
             # Converte None in stringhe vuote e pulisce gli spazi
             cleaned_row = []
