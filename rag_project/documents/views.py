@@ -14,6 +14,14 @@ from django.views.decorators.csrf import csrf_exempt
 from dotenv import load_dotenv, set_key, dotenv_values
 from .utils.text_summarization import summarize_documents
 from .utils.RAG import RAG
+from .utils.document_conversion import FactoryConversion
+
+CONVERT_OPTIONS = [
+    {"value": "pdf", "label": "PDF - Documento Portabile"},
+    {"value": "docx", "label": "DOCX - Word"},
+    {"value": "txt", "label": "TXT - Testo semplice"},
+    {"value": "html", "label": "HTML - Pagina Web"},
+]
 
 def home(request):
     # Fetch all documents to display on the home page
@@ -329,6 +337,49 @@ def delete_analytics(request):
     except Document.DoesNotExist:
         logger.error(f"Document with ID {doc_id} does not exist.")
         return render(request, 'documents/upload_error.html', {'error': 'Document analytics not found.'})
+
+
+def convert_landing_page(request, doc_id):    
+    doc = Document.objects.get(id=doc_id)
+    if not doc.file:
+        return render(request, 'documents/upload_error.html', {'error': 'Document file is missing.'})
+    
+    logger.debug(f"Processing document with ID: {doc.id}, Title: {doc.title}, Url: {doc.file.url}")  # Debugging output
+    document_extractor = DocumentExtractor(doc.raw_bytes)
+
+    file_name = doc.file.name  
+    _, file_extension = os.path.splitext(file_name)  
+    file_extension = file_extension.lower().lstrip('.')
+    
+
+    return render(request, 'documents/convert.html', {
+        "document": doc,
+        "bytes" : doc.raw_bytes,
+        "file_extension": file_extension,
+        "convert_options": CONVERT_OPTIONS,})
+
+def convert_document(request, doc_id):
+    logger.info('DATA: ')
+    logger.info(request)
+    data = json.loads(request.body)
+    logger.info('DATA: ')
+    logger.info(data)
+    converted_document = FactoryConversion.convert(
+        input_file_extension=data.get('input_file_extension'),
+        output_file_extension=data.get('output_file_extension'),
+        file_bytes=data.get('file_bytes')
+    )
+
+    output_extension = data.get('output_file_extension', 'bin').lower()
+    filename = f"converted_document.{output_extension}"
+
+    response = HttpResponse(
+        converted_document,
+        content_type='application/octet-stream'
+    )
+    response['Content-Disposition'] = f'attachment; filename="{filename}"'
+    
+    return response
 
 @csrf_exempt
 def save_env_keys(request):

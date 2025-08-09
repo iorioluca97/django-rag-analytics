@@ -234,7 +234,7 @@ class DocumentExtractor:
             validated_toc = json.loads(json.dumps(toc_python))
         except (ValueError, SyntaxError) as e:
             logger.error(f"Error converting TOC to valid JSON: {e}")
-            raise
+            return {}
 
         logger.debug(f"Validated TOC: {validated_toc}")
         return validated_toc
@@ -587,7 +587,6 @@ class DocumentExtractor:
         except Exception as e:
             logger.error(f"Error detecting language: {e}")
             return "???"
-
 
     def extract_tables(
         self,

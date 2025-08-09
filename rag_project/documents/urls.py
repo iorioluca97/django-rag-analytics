@@ -27,7 +27,11 @@ urlpatterns = [
     # URL per inviare un messaggio
     path("chat/<int:doc_id>/ask-question/", views.ask_question, name="ask-question"),
     # URL per cancellare analisi documento
-    path('delete-document-analytics/', views.delete_analytics, name='delete_analytics')
+    path('delete-document-analytics/', views.delete_analytics, name='delete_analytics'),
+    # URL per andare sulla pagina di conversione
+    path('convert_landing_page/<int:doc_id>/', views.convert_landing_page, name='convert_landing_page'),
+    # URL per andare sulla pagina di conversione
+    path('convert_document/<int:doc_id>', views.convert_document, name='convert_document'),
 
 
 
