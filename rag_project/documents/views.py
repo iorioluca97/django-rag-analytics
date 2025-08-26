@@ -242,6 +242,22 @@ def analyze_document(request, doc_id):
         )
         analytics.save()
 
+        if not os.getenv("MONGO_URI"):
+            logger.warning("MONGO_URI is not set, skipping indexing.")
+            return render(request, 'documents/analytics.html', {
+                'document': doc,
+                'toc': toc,
+                'images': images_extracted,
+                'page_numbers': page_numbers,
+                'images_count': len(images_extracted),
+                'words_count': words_count,
+                'elapsed_time': round(elapsed_time, 2),
+                'reading_time': reading_time,
+                'language': language.upper(),
+                'tables_count': len(jsons_extracted),
+                'tables': jsons_extracted,
+            })
+        
         try:
             db = MongoDb(collection_name=doc.title)
             db.index_chunks(chunks, doc)

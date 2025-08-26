@@ -1,5 +1,6 @@
 echo "---------------- Install dependencies ..."
-# poetry install --no-root --only main
+pip install poetry
+poetry install --no-root --only main
 
 echo "---------------- Auth environment file ..."
 chmod 644 /workspaces/django-rag-analytics/rag_project/.env
