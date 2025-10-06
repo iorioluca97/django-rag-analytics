@@ -5,3 +5,5 @@ __pycache__/
 *.pyc
 media
 rag_project/db.sqlite3
+data/*
+*.DS_Store

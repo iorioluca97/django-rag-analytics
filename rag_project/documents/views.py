@@ -15,6 +15,9 @@ from dotenv import load_dotenv, set_key, dotenv_values
 from .utils.text_summarization import summarize_documents
 from .utils.RAG import RAG
 from .utils.document_conversion import FactoryConversion
+import threading
+from concurrent.futures import ThreadPoolExecutor, as_completed
+from typing import Dict, Any
 
 CONVERT_OPTIONS = [
     {"value": "pdf", "label": "PDF - Documento Portabile"},
@@ -23,11 +26,87 @@ CONVERT_OPTIONS = [
     {"value": "html", "label": "HTML - Pagina Web"},
 ]
 
+# Multi-threading helper functions for document analysis
+def extract_content_thread(doc_extractor: DocumentExtractor, raw_bytes: bytes) -> Dict[str, Any]:
+    """Thread 1: Extract TOC, text chunks, and tables"""
+    logger.debug("Thread 1: Starting content extraction...")
+    
+    toc = doc_extractor.extract_toc()
+    chunks = doc_extractor.extract_text()
+    full_text = " ".join(chunk.page_content for chunk in chunks)
+    dfs_extracted, jsons_extracted = doc_extractor.extract_tables(
+        raw_bytes, min_words_in_row=1)
+    
+    logger.debug(f"Thread 1: Extracted {len(chunks)} chunks, {len(jsons_extracted)} tables")
+    
+    return {
+        'toc': toc,
+        'chunks': chunks,
+        'full_text': full_text,
+        'tables_dfs': dfs_extracted,
+        'tables_json': jsons_extracted
+    }
+
+def extract_metadata_thread(doc_extractor: DocumentExtractor, full_text: str) -> Dict[str, Any]:
+    """Thread 2: Extract language, reading time, and word count"""
+    logger.debug("Thread 2: Starting metadata extraction...")
+    
+    language = doc_extractor.detect_language(full_text)
+    reading_time = doc_extractor.estimate_reading_time(full_text)
+    words_count = doc_extractor.get_words_count(full_text)
+    page_count = doc_extractor.page_count
+    
+    logger.debug(f"Thread 2: Language: {language}, Words: {words_count}, Reading time: {reading_time}min")
+    
+    return {
+        'language': language,
+        'reading_time': reading_time,
+        'words_count': words_count,
+        'page_count': page_count
+    }
+
+def extract_images_thread(doc_extractor: DocumentExtractor, document: Document) -> Dict[str, Any]:
+    """Thread 3: Extract and save images"""
+    logger.debug("Thread 3: Starting image extraction...")
+    
+    images_extracted = doc_extractor.extract_images()
+    
+    # Save images to database
+    for i, image in enumerate(images_extracted, start=1):
+        DocumentImage.objects.create(
+            image=image["raw_bytes"],
+            document=document,
+            page_number=image['page_number']
+        )
+    
+    logger.debug(f"Thread 3: Extracted and saved {len(images_extracted)} images")
+    
+    return {
+        'images': images_extracted,
+        'images_count': len(images_extracted)
+    }
+
+def index_mongodb_thread(chunks, document: Document) -> Dict[str, Any]:
+    """Thread 4: Index chunks in MongoDB"""
+    logger.debug("Thread 4: Starting MongoDB indexing...")
+    
+    if not os.getenv("MONGO_URI"):
+        logger.warning("Thread 4: MONGO_URI is not set, skipping indexing.")
+        return {'mongodb_indexed': False, 'error': 'MONGO_URI not set'}
+    
+    try:
+        db = MongoDb(collection_name=document.title)
+        db.index_chunks(chunks, document)
+        logger.debug(f"Thread 4: Successfully indexed {len(chunks)} chunks")
+        return {'mongodb_indexed': True, 'chunks_count': len(chunks)}
+    except Exception as e:
+        logger.error(f"Thread 4: Error indexing document chunks: {str(e)}")
+        return {'mongodb_indexed': False, 'error': str(e)}
+
 def home(request):
-    # Fetch all documents to display on the home page
-    documents = Document.objects.all().order_by('-uploaded_at')
-    logger.debug(f"Fetched {documents.count()} documents from the database.")
-    return render(request, 'documents/home.html', {'documents': documents})
+    # Simple home page with upload form and OpenAI key configuration
+    logger.debug("Rendering home page.")
+    return render(request, 'documents/home.html')
 
 def upload_document(request):
     if request.method == 'POST' and request.FILES.get('file'):
@@ -184,50 +263,76 @@ def analyze_document(request, doc_id):
     try:
         doc_extractor = DocumentExtractor(doc.raw_bytes)
         start_time = time.time()
-        toc = doc_extractor.extract_toc()
-        chunks = doc_extractor.extract_text()
-        full_text = " ".join(chunk.page_content for chunk in chunks)
         
-        # Altri metadati
-        language = doc_extractor.detect_language(full_text)
-        reading_time = doc_extractor.estimate_reading_time(full_text)
-        page_numbers = doc_extractor.page_count
-        words_count = doc_extractor.get_words_count(full_text)
-        images_extracted = doc_extractor.extract_images()
-        dfs_extracted, jsons_extracted = doc_extractor.extract_tables(
-            doc.raw_bytes, min_words_in_row=1)
+        # Initialize results containers
+        content_result = {}
+        metadata_result = {}
+        images_result = {}
+        mongodb_result = {}
+        
+        # Execute extraction tasks in parallel using ThreadPoolExecutor
+        with ThreadPoolExecutor(max_workers=4) as executor:
+            logger.debug("Starting multi-threaded document analysis...")
+            
+            # Submit Thread 1: Content extraction (TOC, text, tables)
+            content_future = executor.submit(extract_content_thread, doc_extractor, doc.raw_bytes)
+            
+            # Wait for content to extract full_text before starting metadata thread
+            content_result = content_future.result()
+            full_text = content_result['full_text']
+            
+            # Now submit remaining threads with dependencies resolved
+            futures = {
+                'metadata': executor.submit(extract_metadata_thread, doc_extractor, full_text),
+                'images': executor.submit(extract_images_thread, doc_extractor, doc),
+                'mongodb': executor.submit(index_mongodb_thread, content_result['chunks'], doc)
+            }
+            
+            # Collect results as they complete
+            for future_name, future in futures.items():
+                try:
+                    result = future.result(timeout=300)  # 5 minute timeout
+                    if future_name == 'metadata':
+                        metadata_result = result
+                    elif future_name == 'images':
+                        images_result = result
+                    elif future_name == 'mongodb':
+                        mongodb_result = result
+                    logger.debug(f"Thread completed: {future_name}")
+                except Exception as e:
+                    logger.error(f"Thread {future_name} failed: {str(e)}")
+                    # Set default values for failed threads
+                    if future_name == 'metadata':
+                        metadata_result = {
+                            'language': 'unknown',
+                            'reading_time': 0,
+                            'words_count': 0,
+                            'page_count': doc_extractor.page_count
+                        }
+                    elif future_name == 'images':
+                        images_result = {'images': [], 'images_count': 0}
+                    elif future_name == 'mongodb':
+                        mongodb_result = {'mongodb_indexed': False, 'error': str(e)}
 
-        if jsons_extracted:
-            logger.debug(f"Extracted {len(jsons_extracted)} tables from the document.")
-        logger.debug(f"Extracted {len(dfs_extracted)} tables from the document.")
-
-        for i, image in enumerate(images_extracted, start=1):
-            # Save the image as a binary field
-            DocumentImage.objects.create(
-                image=image["raw_bytes"],
-                document=doc,
-                page_number=image['page_number']
-            )
-
+        # Calculate elapsed time
         end_time = time.time()
         elapsed_time = round(end_time - start_time, 2)
-
-         #TODO: Implement the NER extraction logic
-        # text_extracted = doc_extractor.extract_text(text)
-        # entities = doc_extractor.extract_entities(text_extracted)
-
-        # for ent in entities:
-        #     Entity.objects.create(
-        #         document=doc,
-        #         text=ent["text"],
-        #         label=ent["label"],
-        #         start_pos=ent["start"],
-        #         end_pos=ent["end"]
-        #     )
-
-        # Log the time taken for text extraction
-        end_time = time.time()
-        elapsed_time = end_time - start_time
+        
+        logger.debug(f"Multi-threaded analysis completed in {elapsed_time}s")
+        
+        # Extract values from results
+        toc = content_result.get('toc', [])
+        chunks = content_result.get('chunks', [])
+        full_text = content_result.get('full_text', '')
+        jsons_extracted = content_result.get('tables_json', [])
+        
+        language = metadata_result.get('language', 'unknown')
+        reading_time = metadata_result.get('reading_time', 0)
+        words_count = metadata_result.get('words_count', 0)
+        page_numbers = metadata_result.get('page_count', 0)
+        
+        images_extracted = images_result.get('images', [])
+        images_count = images_result.get('images_count', 0)
 
         # Save analytics to the database
         analytics = DocumentAnalytics(
@@ -238,31 +343,15 @@ def analyze_document(request, doc_id):
             reading_time=reading_time,
             page_count=page_numbers,
             words_count=words_count,
-            images_extracted_count=len(images_extracted)
+            images_extracted_count=images_count
         )
         analytics.save()
 
-        if not os.getenv("MONGO_URI"):
-            logger.warning("MONGO_URI is not set, skipping indexing.")
-            return render(request, 'documents/analytics.html', {
-                'document': doc,
-                'toc': toc,
-                'images': images_extracted,
-                'page_numbers': page_numbers,
-                'images_count': len(images_extracted),
-                'words_count': words_count,
-                'elapsed_time': round(elapsed_time, 2),
-                'reading_time': reading_time,
-                'language': language.upper(),
-                'tables_count': len(jsons_extracted),
-                'tables': jsons_extracted,
-            })
-        
-        try:
-            db = MongoDb(collection_name=doc.title)
-            db.index_chunks(chunks, doc)
-        except ValueError as e:
-            logger.error(f"Error indexing document chunks for document ID: {doc.id}, Title: {doc.title}, Error: {str(e)}")
+        # Log MongoDB indexing results
+        if mongodb_result.get('mongodb_indexed'):
+            logger.info(f"Successfully indexed {mongodb_result.get('chunks_count', 0)} chunks to MongoDB")
+        else:
+            logger.warning(f"MongoDB indexing failed: {mongodb_result.get('error', 'Unknown error')}")
 
         return render(request, 'documents/analytics.html', {
             'document': doc, 
@@ -271,12 +360,12 @@ def analyze_document(request, doc_id):
             'page_numbers': page_numbers,
             'images_count': len(images_extracted),
             'words_count': words_count,
-            'elapsed_time': round(elapsed_time, 2),
+            'elapsed_time': elapsed_time,
             'reading_time': reading_time,
             'language': language.upper(),
             'tables_count': len(jsons_extracted),
             'tables': jsons_extracted,
-
+            'mongodb_indexed': mongodb_result.get('mongodb_indexed', False),
         })
     except Exception as e:
         return render(request, 'documents/upload_error.html', {'error': str(e)})
@@ -401,17 +490,20 @@ def convert_document(request, doc_id):
 def save_env_keys(request):
     if request.method == 'POST':
         openai_key = request.POST.get('openai_key')
-        mongo_uri = request.POST.get('mongo_uri')
+        
+        if not openai_key:
+            return JsonResponse({'status': 'error', 'message': 'OpenAI API Key is required'}, status=400)
 
         env_path = './.env'
 
-        # Set and persist the values
+        # Set and persist only the OpenAI API key
         set_key(env_path, 'OPENAI_API_KEY', openai_key)
-        set_key(env_path, 'MONGO_URI', mongo_uri)
 
         # Ricarica il file in os.environ (non solo scrittura)
         load_dotenv(dotenv_path=env_path, override=True)
 
-        return JsonResponse({'status': 'success'})
-    return JsonResponse({'status': 'error', 'message': 'Invalid request'}, status=400)
+        logger.info("OpenAI API Key updated successfully")
+        return JsonResponse({'status': 'success', 'message': 'OpenAI API Key saved successfully'})
+    
+    return JsonResponse({'status': 'error', 'message': 'Invalid request method'}, status=400)
 

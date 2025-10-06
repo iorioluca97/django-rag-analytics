@@ -22,7 +22,7 @@ urlpatterns = [
     path('chat/<int:doc_id>/', views.chat, name='chat'),
     # URL per l analisi dei documenti
     path('analytics/<int:doc_id>/', views.analyze_document, name='analyze_document'),
-    # URL per salvare le chiavi dell'ambiente
+    # URL per salvare la chiave OpenAI
     path('save-env-keys/', views.save_env_keys, name='save_env_keys'),
     # URL per inviare un messaggio
     path("chat/<int:doc_id>/ask-question/", views.ask_question, name="ask-question"),

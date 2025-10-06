@@ -9,6 +9,7 @@ from pymongo.server_api import ServerApi
 from langchain_core.documents import Document
 
 from .logger import logger
+from .mongodb_config import create_mongodb_client, test_mongodb_connection
 from dotenv import load_dotenv, set_key, dotenv_values
 # Load environment variables
 load_dotenv()
@@ -25,7 +26,12 @@ class MongoDb:
             raise ValueError("MongoDB URI is not set in environment variables")
         cleaned_collection_name = clean_filename_for_collection(collection_name)
         self.uri = uri
-        self.client = MongoClient(self.uri, server_api=ServerApi("1"))
+        # Use the robust MongoDB client configuration
+        try:
+            self.client = create_mongodb_client(self.uri)
+        except Exception as e:
+            logger.error(f"Failed to create MongoDB client: {e}")
+            raise ValueError(f"Cannot connect to MongoDB: {e}")
         self.embedding_model = OpenAIEmbeddings()
 
         self.ping()  # Check if the connection is successful
@@ -42,11 +48,11 @@ class MongoDb:
         # Send a ping to confirm a successful connection
         try:
             self.client.admin.command("ping")
-            # logger.debug(
-            #     "Pinged your deployment. You successfully connected to MongoDB!"
-            # )
+            logger.debug("Successfully connected to MongoDB!")
         except Exception as e:
-            logger.error(e)
+            logger.error(f"MongoDB connection failed: {e}")
+            # Non sollevare l'eccezione per permettere il funzionamento senza MongoDB
+            # raise e
 
     def collection_exists(self, collection_name: str) -> bool:
         if collection_name in self.database_name.list_collection_names():
@@ -156,6 +162,13 @@ class MongoDb:
     def index_chunks(self, chunks: List[Document], doc):
         logger.info(f"Indexing {len(chunks)} chunks for document ID: {doc.id}")
 
+        try:
+            # Test connection before indexing
+            self.ping()
+        except Exception as e:
+            logger.warning(f"MongoDB connection issue, skipping indexing: {e}")
+            return
+
         for i, chunk in enumerate(chunks):
             logger.debug(f"Indexing chunk {i + 1}/{len(chunks)}...")
             try:
@@ -178,7 +191,7 @@ class MongoDb:
                 # Insert the document into the collection
                 self.collection.insert_one(document)
             except Exception as e:
-                logger.error(f"Error indexing chunk: {e}")
+                logger.error(f"Error indexing chunk {i + 1}: {e}")
                 continue
 
 def clean_filename_for_collection(filename: str) -> str:

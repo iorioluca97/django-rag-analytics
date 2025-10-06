@@ -20,15 +20,28 @@ class RAG:
         database_name: str = "django_rag_analytics",
         collection_name: str = "mycollection",
         ):
-        self.vector_db = MongoDb(uri=mongo_uri, database_name=database_name, collection_name=collection_name)
+        try:
+            self.vector_db = MongoDb(uri=mongo_uri, database_name=database_name, collection_name=collection_name)
+        except Exception as e:
+            logger.warning(f"Failed to initialize MongoDB connection: {e}")
+            self.vector_db = None
         self.llm_client = OpenAI()
         self.top_k_documents = top_k_documents
 
     def answer_question(self, user_query: str,):
         # Step 1: Retrieve relevant documents from the database
         logger.debug(f"Retrieving relevant documents for query: {user_query}")
-        relevant_docs = self.vector_db.query(user_query, top_k=self.top_k_documents)
-        logger.debug(f"{len(relevant_docs)} results found in knowledge base.")
+        
+        if self.vector_db is None:
+            logger.warning("MongoDB not available, using fallback response")
+            return "Mi dispiace, il database vettoriale non è disponibile al momento. Le funzionalità di ricerca avanzata sono temporaneamente disabilitate."
+        
+        try:
+            relevant_docs = self.vector_db.query(user_query, top_k=self.top_k_documents)
+            logger.debug(f"{len(relevant_docs)} results found in knowledge base.")
+        except Exception as e:
+            logger.error(f"Error querying vector database: {e}")
+            return "Si è verificato un errore durante la ricerca nel database. Riprova più tardi."
 
         # Step 2: Call the LLM with the user query and relevant documents
         mock_response = self._call_llm(user_query=user_query, relevant_docs=relevant_docs)

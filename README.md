@@ -11,15 +11,29 @@ Non avevo nulla da fare nel weekend e django non l'ho mai visto quindi beccati q
 
 ### ⚙️ Setup iniziale
    
-1. Avvia l'applicazione con Docker:
+1. **Configura le variabili d'ambiente:**
+   ```bash
+   # Crea il file .env
+   cp .env.example .env
+   
+   # Modifica con le tue chiavi
+   nano .env
+   ```
 
-    ```env
-    docker-compose up --build
-    ```
+2. **Avvia l'applicazione:**
+   ```bash
+   # Con Docker
+   docker-compose up --build
+   
+   # Oppure localmente
+   python manage.py runserver
+   ```
 
-2. Inserisci la tua API KEY OpenAI nell'apposito form e salva.
+3. **Configura OpenAI API Key** tramite l'interfaccia web (opzionale se già configurata in .env)
 
-3. Carica un PDF e analizzalo!
+4. **Carica un PDF e analizzalo!**
+
+> 📋 **Nota**: MongoDB è configurato automaticamente tramite variabili d'ambiente. Vedi [ENVIRONMENT_SETUP.md](ENVIRONMENT_SETUP.md) per dettagli completi.
 
 
 ## ✨ Caratteristiche principali

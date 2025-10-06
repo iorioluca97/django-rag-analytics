@@ -330,7 +330,6 @@
         }
 
         .form-group input,
-        .form-group select,
         .form-group textarea {
             width: 100%;
             padding: 1rem;
@@ -344,7 +343,6 @@
         }
 
         .form-group input:focus,
-        .form-group select:focus,
         .form-group textarea:focus {
             outline: none;
             border-color: var(--primary-color);
@@ -454,16 +452,6 @@
             box-shadow: var(--shadow-md);
         }
 
-        /* Select Dropdown */
-        select {
-            appearance: none;
-            background-image: url('data:image/svg+xml;charset=US-ASCII,<svg xmlns="http://www.w3.org/2000/svg" width="14" height="14" fill="%23667eea"><polygon points="0,0 14,0 7,7"/></svg>');
-            background-repeat: no-repeat;
-            background-position: right 1rem center;
-            background-size: 1rem;
-            cursor: pointer;
-        }
-
         /* Status Messages */
         .status-message {
             padding: 1rem;
@@ -485,6 +473,24 @@
             background: rgba(255, 107, 107, 0.1);
             color: var(--danger-color);
             border: 1px solid rgba(255, 107, 107, 0.2);
+        }
+
+        .info-note {
+            display: flex;
+            align-items: center;
+            gap: 0.5rem;
+            padding: 1rem;
+            background: rgba(79, 172, 254, 0.1);
+            border: 1px solid rgba(79, 172, 254, 0.2);
+            border-radius: var(--radius-md);
+            color: var(--accent-color);
+            font-size: 0.9rem;
+            margin-top: 0.5rem;
+        }
+
+        .info-note i {
+            color: var(--accent-color);
+            font-size: 1.1rem;
         }
 
         /* Footer */
@@ -675,34 +681,6 @@
                 </form>
             </div>
 
-            <!-- Documents List Card -->
-            <div class="card">
-                <div class="card-header">
-                    <div class="card-icon">
-                        <i class="fas fa-folder-open"></i>
-                    </div>
-                    <div>
-                        <h3>Documenti Esistenti</h3>
-                    </div>
-                </div>
-                <p>Seleziona un documento dall'archivio per visualizzare i dettagli, continuare l'analisi o esplorare le funzionalità avanzate</p>
-                
-                <form method="get" action="">
-                    <div class="form-group">
-                        <select name="doc_id" onchange="if(this.value) window.location.href=this.value;">
-                            <option value="">-- Scegli un documento --</option>
-                            {% for document in documents %}
-                            <option value="/document/{{ document.id }}">{{ document.title }}</option>
-                            {% endfor %}
-                        </select>
-                    </div>
-                    <button type="button" class="btn btn-secondary" onclick="window.location.reload()">
-                        <i class="fas fa-sync-alt"></i>
-                        Aggiorna Lista
-                    </button>
-                </form>
-            </div>
-
             <!-- Settings Card -->
             <div class="card">
                 <div class="card-header">
@@ -713,15 +691,13 @@
                         <h3>Configurazione API</h3>
                     </div>
                 </div>
-                <p>Inserisci le credenziali necessarie per abilitare le funzionalità di analisi AI e la connessione al database MongoDB</p>
+                <p>Inserisci la tua OpenAI API Key per abilitare le funzionalità di analisi AI.</p>
                 
                 <form id="env-form">
                     <div class="form-group">
                         <input type="password" name="openai_key" placeholder="🔑 OpenAI API Key" required>
                     </div>
-                    <div class="form-group">
-                        <input type="text" name="mongo_uri" placeholder="🍃 MongoDB URI (opzionale)">
-                    </div>
+                    
                     <button type="submit" class="btn btn-success">
                         <i class="fas fa-save"></i>
                         Salva Configurazione

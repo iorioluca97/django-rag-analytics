@@ -45,24 +45,6 @@ class DocumentExtractor:
         words = text.split()
         return len(words)
 
-    def extract_tables(self) -> List[Dict[str, Any]]:
-        """
-        Extracts tables from the document.
-        Currently, this method is a placeholder and does not implement actual table extraction.
-        
-        Returns:
-            List[Dict[str, Any]]: An empty list as a placeholder for future table extraction logic.
-        """
-        # Crea un file temporaneo
-
-        with pdfplumber.open(io.BytesIO(self.fitz_doc.write())) as pdf:
-            logger.debug(f"Extracting tables from {len(pdf.pages)} pages.")
-            for page in pdf.pages:
-                tables = page.extract_tables()
-                for table in tables:
-                    for row in table:
-                        logger.debug(row)
-            return []
         
     def extract_text(self,
         chunk_size: int = 500,
@@ -593,6 +575,7 @@ class DocumentExtractor:
         doc_bytes: bytes,
         min_words_in_row: int = 1,
         table_settings: Optional[Dict] = None,
+        save_tables_to_csv: bool = False,
     ) -> Optional[List[pd.DataFrame]]:
         """
         Estrae tutte le tabelle da un file PDF con opzioni avanzate.
@@ -635,15 +618,14 @@ class DocumentExtractor:
             pdf_source = io.BytesIO(doc_bytes)  # Wrappa i bytes in BytesIO
             logger.info(f"Elaborazione PDF da bytes ({len(doc_bytes)} bytes)")
             with pdfplumber.open(pdf_source) as pdf:
-
+                
+                logger.info(f"Elaborazione PDF da bytes ({len(pdf.pages)} pagine)")
                 for page_num, page in enumerate(pdf.pages, 1):
-                    logger.info(f"Analisi pagina {page_num}/{len(pdf.pages)}")
                     
                     # Estrai tabelle con impostazioni personalizzate
                     tables = page.extract_tables(table_settings=default_table_settings)
                     
                     if not tables:
-                        logger.info(f"Nessuna tabella trovata nella pagina {page_num}")
                         continue
                     
                     for table_num, table in enumerate(tables, 1):
@@ -668,7 +650,12 @@ class DocumentExtractor:
                         all_dataframes.append(df)
                         logger.info(f"Tabella {table_num} elaborata - Dimensioni: {df.shape}")
                 
-                logger.info(f"Elaborazione completata. Totale tabelle trovate: {total_tables}")                
+                logger.info(f"Elaborazione completata. Totale tabelle trovate: {total_tables}")    
+
+                if save_tables_to_csv:
+                    for i, df in enumerate(all_dataframes, 1):
+                        self.save_table(df, "csv", Path("data/tables_extracted"), "tables", table_id=f"table_{i}")
+                
                 return all_dataframes, all_jsons
                     
         except Exception as e:
@@ -682,12 +669,33 @@ class DocumentExtractor:
 
         # Conta le celle non vuote (né None né stringhe vuote)
         non_empty_cells = sum(
-            1 for row in table for cell in row if cell not in (None, '')
+            1 for row in table for cell in row if cell not in (None, '') and str(cell).strip()
         )
 
         if non_empty_cells < min_non_empty_cells:
             logger.warning(f"La tabella ha solo {non_empty_cells} celle non vuote, non viene elaborata.")
             return False
+
+        # Controlla se ci sono colonne completamente vuote
+        if table and table[0]:
+            num_cols = len(table[0])
+            empty_columns = 0
+            
+            for col_idx in range(num_cols):
+                # Controlla se questa colonna è completamente vuota
+                is_empty = True
+                for row in table:
+                    if col_idx < len(row) and str(row[col_idx]).strip():
+                        is_empty = False
+                        break
+                
+                if is_empty:
+                    empty_columns += 1
+            
+            # Se più del 50% delle colonne sono vuote, la tabella potrebbe non essere significativa
+            if empty_columns > num_cols * 0.5:
+                logger.warning(f"La tabella ha {empty_columns}/{num_cols} colonne vuote, potrebbe non essere significativa.")
+                # Non restituiamo False qui, ma solo un warning
 
         return True
 
@@ -721,6 +729,52 @@ class DocumentExtractor:
             if non_empty_cells >= min_words_in_row:
                 cleaned_table.append(cleaned_row)
         
+        # Controlla se ci sono colonne completamente vuote dopo la pulizia
+        if cleaned_table:
+            cleaned_table = self._remove_empty_columns(cleaned_table)
+        
+        return cleaned_table
+
+    def _remove_empty_columns(self, table: List[List]) -> List[List]:
+        """
+        Rimuove le colonne che sono completamente vuote (tutte le celle sono stringhe vuote o spazi).
+        
+        Args:
+            table: Lista di righe (ogni riga è una lista di celle)
+            
+        Returns:
+            List[List]: Tabella con colonne vuote rimosse
+        """
+        if not table or not table[0]:
+            return table
+        
+        # Trova le colonne che non sono completamente vuote
+        num_cols = len(table[0])
+        valid_columns = []
+        
+        for col_idx in range(num_cols):
+            # Controlla se questa colonna ha almeno una cella non vuota
+            has_content = False
+            for row in table:
+                if col_idx < len(row) and str(row[col_idx]).strip():
+                    has_content = True
+                    break
+            
+            if has_content:
+                valid_columns.append(col_idx)
+            else:
+                logger.debug(f"Rimossa colonna {col_idx} - completamente vuota")
+        
+        # Ricostruisci la tabella con solo le colonne valide
+        if not valid_columns:
+            logger.warning("Tutte le colonne sono vuote dopo la pulizia")
+            return []
+        
+        cleaned_table = []
+        for row in table:
+            cleaned_row = [row[col_idx] for col_idx in valid_columns if col_idx < len(row)]
+            cleaned_table.append(cleaned_row)
+        
         return cleaned_table
 
     def create_dataframe_from_table(self, table: List[List]) -> pd.DataFrame:
@@ -743,8 +797,14 @@ class DocumentExtractor:
         else:
             df = pd.DataFrame(table)
         
-        # Rimuovi colonne completamente vuote
+        # Rimuovi colonne completamente vuote (NaN o stringhe vuote)
         df = df.dropna(axis=1, how='all')
+        
+        # Rimuovi colonne con tutte stringhe vuote o spazi
+        for col in df.columns:
+            if df[col].astype(str).str.strip().eq('').all():
+                df = df.drop(columns=[col])
+                logger.debug(f"Rimossa colonna '{col}' - tutte le righe sono vuote")
         
         return df
 
@@ -753,6 +813,7 @@ class DocumentExtractor:
         """
         Salva la tabella nel formato specificato.
         """
+        print(os.getcwd())
         if table_id:
             filename = f"{base_name}_{table_id}"
         else:

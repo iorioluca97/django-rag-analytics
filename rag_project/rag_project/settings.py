@@ -136,8 +136,9 @@ DEFAULT_AUTO_FIELD = "django.db.models.BigAutoField"
 MEDIA_URL = '/media/'
 MEDIA_ROOT = BASE_DIR / 'media'
 
+# API Keys and External Services
 OPENAI_API_KEY = config("OPENAI_API_KEY", default=False)
-MONGO_URI = config("MONGO_URI", default=False)
+MONGO_URI = config("MONGO_URI", default=False)  # Configurato automaticamente tramite .env
 
 
 
