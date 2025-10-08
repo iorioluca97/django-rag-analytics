@@ -31,11 +31,17 @@ def extract_content_thread(doc_extractor: DocumentExtractor, raw_bytes: bytes) -
     """Thread 1: Extract TOC, text chunks, and tables"""
     logger.debug("Thread 1: Starting content extraction...")
     
-    toc = doc_extractor.extract_toc()
-    chunks = doc_extractor.extract_text()
+    results = doc_extractor.extract(
+        extract_toc = True,
+        extract_tables = True
+    )
+
+
+    toc = results.get('toc', None)
+    chunks = results.get('chunks', None)
     full_text = " ".join(chunk.page_content for chunk in chunks)
-    dfs_extracted, jsons_extracted = doc_extractor.extract_tables(
-        raw_bytes, min_words_in_row=1)
+    
+    dfs_extracted, jsons_extracted = results.get('tables', None)
     
     logger.debug(f"Thread 1: Extracted {len(chunks)} chunks, {len(jsons_extracted)} tables")
     
@@ -51,25 +57,35 @@ def extract_metadata_thread(doc_extractor: DocumentExtractor, full_text: str) ->
     """Thread 2: Extract language, reading time, and word count"""
     logger.debug("Thread 2: Starting metadata extraction...")
     
-    language = doc_extractor.detect_language(full_text)
-    reading_time = doc_extractor.estimate_reading_time(full_text)
-    words_count = doc_extractor.get_words_count(full_text)
-    page_count = doc_extractor.page_count
-    
+    results = doc_extractor.extract(
+        extract_others=True
+        )
+
+    language = results['other_info'].get("detected_language", None)
+    reading_time = results['other_info'].get("reading_time", None)
+    words_count = results['other_info'].get("words_count", None)
+    page_count = results['other_info'].get("page_count", None)
+    most_common_words = results['other_info'].get("most_common_words", [])
+
     logger.debug(f"Thread 2: Language: {language}, Words: {words_count}, Reading time: {reading_time}min")
     
     return {
         'language': language,
         'reading_time': reading_time,
         'words_count': words_count,
-        'page_count': page_count
+        'page_count': page_count,
+        'most_common_words': most_common_words
     }
 
 def extract_images_thread(doc_extractor: DocumentExtractor, document: Document) -> Dict[str, Any]:
     """Thread 3: Extract and save images"""
     logger.debug("Thread 3: Starting image extraction...")
     
-    images_extracted = doc_extractor.extract_images()
+    results = doc_extractor.extract(
+        extract_images= True
+    )
+
+    images_extracted = results.get('images', None)
     
     # Save images to database
     for i, image in enumerate(images_extracted, start=1):
@@ -143,7 +159,7 @@ def chunk_document(request, doc_id):
     document_extractor = DocumentExtractor(doc.raw_bytes)
     title_no_ext = doc.title.split('.pdf')[0] if doc.title else 'document'
     try:
-        documents = document_extractor.extract_text()
+        documents = document_extractor.extract()['chunks']
         logger.debug(f"Extracted {len(documents)} chunks from the document.")
 
 
@@ -157,12 +173,15 @@ def chunk_document(request, doc_id):
             },
             'chunks': []
         }
+        logger.info("Preparing JSON result...")
         for doc in documents:
             complete_result['chunks'].append({
                 'chunk_text': doc.page_content,
                 'chunk_metadata': doc.metadata
             })
 
+        logger.info(f"Prepared JSON result with {len(complete_result['chunks'])} chunks.")
+        logger.debug(complete_result)
         # Convert the result to a JSON string
         json_string = json.dumps(complete_result, indent=2)
         
@@ -191,7 +210,7 @@ def summarize_document(request, doc_id):
 
     try:
         document_extractor = DocumentExtractor(doc.raw_bytes)
-        documents = document_extractor.extract_text()
+        documents = document_extractor.extract()['chunks']
         summary = summarize_documents(documents, llm_settings)
 
         logger.debug(f"Generated summary: {summary[:1000]}...")  # Log the first 1000 characters of the summary
@@ -234,14 +253,15 @@ def analyze_document(request, doc_id):
         logger.debug(f"Document analytics found for document ID: {doc.id}, Title: {doc.title}")
 
         doc_extractor = DocumentExtractor(doc.raw_bytes)
-        dfs_extracted, jsons_extracted = doc_extractor.extract_tables(
-            doc.raw_bytes, min_words_in_row=1)
+        results = doc_extractor.extract(
+            extract_tables = True,
+            extract_images = True,
+            extract_others = True
+        )
 
-        if jsons_extracted:
-            logger.debug(f"Extracted {len(jsons_extracted)} tables from the document.")
-        images_extracted = doc_extractor.extract_images()
-
-        logger.debug(jsons_extracted)
+        images_extracted = results.get('images', [])
+        dfs_extracted, jsons_extracted = results.get('tables', ([], []))
+        most_common_words = results.get('other_info', {}).get('most_common_words', [])
 
         return render(request, 'documents/analytics.html', {
             'document': doc,
@@ -256,6 +276,7 @@ def analyze_document(request, doc_id):
             'images': images_extracted,
             'tables_count': len(jsons_extracted),
             'tables': jsons_extracted,
+            'most_common_words': most_common_words,
         })
 
     # Document does not have analytics, proceed with extraction
@@ -280,12 +301,15 @@ def analyze_document(request, doc_id):
             # Wait for content to extract full_text before starting metadata thread
             content_result = content_future.result()
             full_text = content_result['full_text']
+
+            logger.debug(full_text[:500])  # Log the first 500 characters of the full text
             
             # Now submit remaining threads with dependencies resolved
             futures = {
                 'metadata': executor.submit(extract_metadata_thread, doc_extractor, full_text),
                 'images': executor.submit(extract_images_thread, doc_extractor, doc),
-                'mongodb': executor.submit(index_mongodb_thread, content_result['chunks'], doc)
+                #TODO: Fix mongo connection
+                # 'mongodb': executor.submit(index_mongodb_thread, content_result['chunks'], doc)
             }
             
             # Collect results as they complete
@@ -330,10 +354,24 @@ def analyze_document(request, doc_id):
         reading_time = metadata_result.get('reading_time', 0)
         words_count = metadata_result.get('words_count', 0)
         page_numbers = metadata_result.get('page_count', 0)
+        most_common_words = metadata_result.get('most_common_words', [])
         
         images_extracted = images_result.get('images', [])
         images_count = images_result.get('images_count', 0)
 
+
+
+        logger.debug(f"Final extracted data - TOC items: {len(toc)}, Chunks: {len(chunks)}, Tables: {len(jsons_extracted)}, Images: {images_count}, Language: {language}, Words: {words_count}, Reading time: {reading_time }min, Pages: {page_numbers}")
+        
+        logger.debug(f"TOC: {toc}")
+        logger.debug(f"Tables JSON: {jsons_extracted}")
+        logger.debug(f"Images extracted: {images_extracted}")
+        logger.debug(f"MongoDB Result: {mongodb_result}")
+        logger.debug(f"Chunks sample: {[chunk.page_content[:100] for chunk in chunks[:3]]}")  # Log first 100 chars of first 3 chunks
+        logger.debug(f"Full text sample: {full_text[:500]}...")  # Log first 500 chars of full text
+        logger.debug(f"Document metadata - Title: {doc.title}, Size: {doc.size}, Uploaded at: {doc.uploaded_at}, Uploaded by: {doc.uploaded_by}")
+        
+        
         # Save analytics to the database
         analytics = DocumentAnalytics(
             document=doc,
@@ -346,6 +384,7 @@ def analyze_document(request, doc_id):
             images_extracted_count=images_count
         )
         analytics.save()
+        logger.info(f"Saved analytics for document ID: {doc.id}, Title: {doc.title}")
 
         # Log MongoDB indexing results
         if mongodb_result.get('mongodb_indexed'):
@@ -366,6 +405,7 @@ def analyze_document(request, doc_id):
             'tables_count': len(jsons_extracted),
             'tables': jsons_extracted,
             'mongodb_indexed': mongodb_result.get('mongodb_indexed', False),
+            'most_common_words': most_common_words,
         })
     except Exception as e:
         return render(request, 'documents/upload_error.html', {'error': str(e)})

@@ -1060,6 +1060,191 @@
 .data-table tr:hover {
     background: #9b9c9d;
 }
+
+/* Stili per le parole più comuni */
+.words-container {
+    padding: 1.5rem;
+}
+
+.section-description {
+    color: var(--text-secondary);
+    font-size: 0.95rem;
+    line-height: 1.5;
+    margin-bottom: 1rem;
+    text-align: center;
+    font-style: italic;
+}
+
+.words-grid {
+    display: grid;
+    grid-template-columns: repeat(auto-fit, minmax(220px, 1fr));
+    gap: 1.25rem;
+    margin-top: 1.5rem;
+}
+
+.word-item {
+    background: linear-gradient(135deg, var(--bg-tertiary) 0%, var(--bg-secondary) 100%);
+    border: 2px solid var(--border-light);
+    border-radius: var(--radius-lg);
+    padding: 1.5rem;
+    text-align: center;
+    transition: all var(--transition-normal);
+    cursor: default;
+    position: relative;
+    overflow: hidden;
+}
+
+.word-item::before {
+    content: '';
+    position: absolute;
+    top: 0;
+    left: 0;
+    right: 0;
+    height: 4px;
+    background: var(--primary-gradient);
+    opacity: 0;
+    transition: opacity var(--transition-normal);
+}
+
+.word-item:hover {
+    transform: translateY(-4px);
+    box-shadow: var(--shadow-lg);
+    border-color: var(--primary-color);
+}
+
+.word-item:hover::before {
+    opacity: 1;
+}
+
+.word-text {
+    font-size: 1.2rem;
+    font-weight: 600;
+    color: var(--text-primary);
+    margin-bottom: 0.75rem;
+    word-break: break-word;
+    text-transform: capitalize;
+    letter-spacing: 0.5px;
+}
+
+.word-count {
+    font-size: 2rem;
+    font-weight: 800;
+    background: var(--primary-gradient);
+    background-clip: text;
+    -webkit-background-clip: text;
+    -webkit-text-fill-color: transparent;
+    position: relative;
+}
+
+.word-count::after {
+    content: 'occorrenze';
+    position: absolute;
+    bottom: -1.5rem;
+    left: 50%;
+    transform: translateX(-50%);
+    font-size: 0.75rem;
+    font-weight: 400;
+    color: var(--text-secondary);
+    text-transform: uppercase;
+    letter-spacing: 1px;
+    background: none;
+    -webkit-text-fill-color: var(--text-secondary);
+}
+
+/* Varianti di colore per le prime 3 parole */
+.word-item:nth-child(1) {
+    border-color: #FFD700;
+}
+
+.word-item:nth-child(1)::before {
+    background: linear-gradient(135deg, #FFD700, #FFA500);
+}
+
+.word-item:nth-child(2) {
+    border-color: #C0C0C0;
+}
+
+.word-item:nth-child(2)::before {
+    background: linear-gradient(135deg, #C0C0C0, #A9A9A9);
+}
+
+.word-item:nth-child(3) {
+    border-color: #CD7F32;
+}
+
+.word-item:nth-child(3)::before {
+    background: linear-gradient(135deg, #CD7F32, #B8860B);
+}
+
+/* Badge per il ranking */
+.word-item:nth-child(-n+3)::after {
+    content: '#' counter(word-counter);
+    counter-increment: word-counter;
+    position: absolute;
+    top: 0.75rem;
+    right: 0.75rem;
+    background: var(--primary-gradient);
+    color: white;
+    font-size: 0.75rem;
+    font-weight: 600;
+    padding: 0.25rem 0.5rem;
+    border-radius: 50px;
+    box-shadow: var(--shadow-md);
+}
+
+.words-grid {
+    counter-reset: word-counter;
+}
+
+/* Responsive per le parole */
+@media (max-width: 768px) {
+    .words-container {
+        padding: 1rem;
+    }
+    
+    .words-grid {
+        grid-template-columns: repeat(auto-fit, minmax(180px, 1fr));
+        gap: 1rem;
+        margin-top: 1rem;
+    }
+    
+    .word-item {
+        padding: 1.25rem;
+    }
+    
+    .word-text {
+        font-size: 1.1rem;
+        margin-bottom: 0.5rem;
+    }
+    
+    .word-count {
+        font-size: 1.75rem;
+    }
+    
+    .word-count::after {
+        font-size: 0.7rem;
+        bottom: -1.25rem;
+    }
+}
+
+@media (max-width: 480px) {
+    .words-grid {
+        grid-template-columns: repeat(auto-fit, minmax(150px, 1fr));
+        gap: 0.75rem;
+    }
+    
+    .word-item {
+        padding: 1rem;
+    }
+    
+    .word-text {
+        font-size: 1rem;
+    }
+    
+    .word-count {
+        font-size: 1.5rem;
+    }
+}
     
 
     </style>
@@ -1282,6 +1467,37 @@
     </div>
     {% endif %}
 </div>
+
+<!-- Sezione Parole Più Comuni -->
+<div class="analytics-card">
+    <div class="card-header">
+        <div class="card-icon"><i class="fas fa-font"></i></div>
+        <h2>Parole Più Frequenti nel Documento</h2>
+    </div>
+    
+    {% if most_common_words %}
+    <div class="words-container">
+        <p class="section-description">
+            Le parole che compaiono più frequentemente nel documento, escludendo articoli, preposizioni e congiunzioni comuni.
+        </p>
+        <div class="words-grid">
+            {% for word_data in most_common_words %}
+            <div class="word-item">
+                <div class="word-text">{{ word_data.word }}</div>
+                <div class="word-count">{{ word_data.count }}</div>
+            </div>
+            {% endfor %}
+        </div>
+    </div>
+    {% else %}
+    <div class="empty-state">
+        <div class="icon"><i class="far fa-font"></i></div>
+        <h3>Nessuna Parola Trovata</h3>
+        <p>Non è stato possibile estrarre le parole più comuni dal documento.</p>
+    </div>
+    {% endif %}
+</div>
+
         </section>
     </main>
 

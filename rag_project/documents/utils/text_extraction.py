@@ -20,38 +20,194 @@ import pandas as pd
 from pathlib import Path
 from typing import List, Dict, Optional, Union
 import logging
+from typing import Protocol
+from dataclasses import dataclass
 
-class DocumentExtractor:
-    def __init__(self, document_bytes: bytes):
-        """
-        Initializes the DocumentExtractor class.
-        This class is responsible for extracting text, images, and metadata from PDF documents.
-        """
-        self.fitz_doc = fitz.open(stream=document_bytes, filetype="pdf")
-        self.page_count = self.fitz_doc.page_count
 
-    def get_words_count(self, text: str) -> int:
+class DocumentHandler(Protocol):
+    def extract(self) -> None:
+        ...
+
+
+
+@dataclass
+class ImageExtractor:
+    document_bytes: bytes
+
+    def __post_init__(self):
+        self.fitz_content = fitz.open(stream=self.document_bytes, filetype="pdf")
+
+
+    def extract(self):
         """
-        Counts the number of words in a given text.
+        Given raw bytes, extracts images from the document.
+        Args:
+            raw_bytes (bytes): The raw bytes of the document.
+        Returns:
+            List[bytes]: A list of bytes representing the extracted images.
+        """
+        images = []
+        try:
+            for page_num, page in enumerate(self.fitz_content):
+                page_images = self._process_page_images(self.fitz_content, page, page_num)
+                images.extend(page_images)
+        except Exception as e:
+            logger.error(f"Error extracting images: {str(e)}")
+            return []
+
+        logger.debug(f"Extracted {len(images)} images from the document.")
+        logger.debug(f"Image Keys: {images[0].keys() if images else 'No images found'}")
+        return images
+
+    def _process_page_images(self, doc, page, page_num: int) -> List[Dict]:
+            """
+            Process all images in a single page.
+
+            Args:
+                doc: The PyMuPDF document object.
+                page: The page object.
+                page_num (int): The page number.
+
+            Returns:
+                List[Dict]: A list of dictionaries containing image metadata.
+            """
+            page_images = []
+            loaded_page = doc.load_page(page_num)
+            page_dims = loaded_page.get_text("dict")
+            page_area = round(float(page_dims["width"]) * float(page_dims["height"]))
+
+            for img_idx, img_info in enumerate(
+                page.get_image_info(hashes=True, xrefs=True)
+            ):
+                image_data = self._extract_single_image(
+                    doc, img_info, page_num, img_idx, page_area, page
+                )
+                if image_data:
+                    page_images.append(image_data)
+
+            return page_images
+
+    def _extract_single_image(
+            self, doc, img_info, page_num: int, img_idx: int, page_area: float, page
+        ) -> Optional[Dict]:
+            """
+            Extract and process a single image if it meets criteria.
+
+            Args:
+                doc: The PyMuPDF document object.
+                img_info: The image information dictionary.
+                page_num (int): The page number.
+                img_idx (int): The image index.
+                page_area (float): The area of the page.
+                page: The page object.
+            """
+            try:
+                xref = img_info["xref"]
+                if xref == 0:
+                    return None
+
+                base_image = doc.extract_image(xref)
+                if not base_image:
+                    return None
+
+                if self._is_all_black(base_image["image"]):
+                    return None
+
+                bbox = fitz.Rect(img_info["bbox"])
+                image_area = round(bbox.width * bbox.height)
+
+                # Skip images that don't meet size criteria
+                if not self._is_valid_image(image_area, page_area, page, bbox):
+                    return None
+
+                return {
+                    "raw_bytes": base_image["image"],
+                    "base64_data": base64.b64encode(base_image["image"]).decode(),
+                    "filename": f"page{page_num}_img{img_idx}.{base_image['ext']}",
+                    "format": base_image["ext"],
+                    "page_number": page_num,
+                    "size": f"{base_image['width']}x{base_image['height']}"
+            }
+
+
+            except Exception as e:
+                logger.error(
+                    f"Error processing image {img_idx} on page {page_num}: {str(e)}"
+                )
+                return None
+    
+    def _is_all_black(self, img_bytes: bytes, threshold: float = 0.98) -> bool:
+        """
+        Check if an image is all black or mostly black.
 
         Args:
-            text (str): The input text to be processed.
+            img_bytes (bytes): The image content in bytes.
+            threshold (float): The threshold for determining if the image is black.
 
         Returns:
-            int: The number of words in the text.
+            True if the image is (mostly) black.
         """
-        if not text:
-            return 0
-        words = text.split()
-        return len(words)
+        with Image.open(io.BytesIO(img_bytes)) as img:
+            img = img.convert("L")  # Convert to grayscale
+            pixels = list(img.getdata())
+            total_pixels = len(pixels)
 
-        
-    def extract_text(self,
+            black_pixels = sum(1 for p in pixels if p < 10)  # Tolerance for near-black
+            black_ratio = black_pixels / total_pixels
+
+            return black_ratio >= threshold
+
+    def _is_valid_image(
+        self,
+        image_area: int,
+        page_area: int,
+        page,
+        bbox: dict,
+        percentage_threshold: float = 0.05,
+        header_pct: float = 0.1,
+        footer_pct: float = 0.1,
+        ) -> bool:
+            """
+            Check if image area is greater than the threshold percentage of the page area
+            and is not in the header/footer zones.
+
+            Args:
+                image_area: Area of the image.
+                page_area: Area of the page.
+                page: The page object.
+                bbox: Bounding box of the image.
+                percentage_threshold: Percentage threshold for image size.
+                header_pct: Percentage of the page height for header zone.
+                footer_pct: Percentage of the page height for footer zone.
+
+            Returns:
+                True if the image is valid (size and position).
+            """
+            threshold = page_area * percentage_threshold
+            is_bigger_enough = image_area >= threshold
+
+            page_height = page.rect.height
+            header_limit = header_pct * page_height
+            footer_limit = (1 - footer_pct) * page_height
+
+            # TRUE if the image is NOT in header or footer
+            is_in_the_middle = bbox.y0 >= header_limit and bbox.y1 <= footer_limit
+
+            return is_bigger_enough and is_in_the_middle
+
+@dataclass
+class TextExtractor:
+    document_bytes: bytes
+
+    def __post_init__(self):
+        self.fitz_content = fitz.open(stream=self.document_bytes, filetype="pdf")
+
+    def extract(self,
         chunk_size: int = 500,
         chunk_overlap: int = 50) -> List[Document]:
         full_text = ""
 
-        for i, page in enumerate(self.fitz_doc):
+        for i, page in enumerate(self.fitz_content):
             full_text += page.get_text()
             full_text += "\n"  # separatore opzionale tra pagine
 
@@ -69,34 +225,22 @@ class DocumentExtractor:
             documents.append(doc)
         return documents
 
-    def extract_images(self):
-        """
-        Given raw bytes, extracts images from the document.
-        Args:
-            raw_bytes (bytes): The raw bytes of the document.
-        Returns:
-            List[bytes]: A list of bytes representing the extracted images.
-        """
-        images = []
-        try:
-            for page_num, page in enumerate(self.fitz_doc):
-                page_images = self._process_page_images(self.fitz_doc, page, page_num)
-                images.extend(page_images)
-        except Exception as e:
-            logger.error(f"Error extracting images: {str(e)}")
-            return []
 
-        logger.debug(f"Extracted {len(images)} images from the document.")
-        logger.debug(f"Image Keys: {images[0].keys() if images else 'No images found'}")
-        return images
-    
-    def extract_toc(self):
-        toc = self.fitz_doc.get_toc()
+@dataclass
+class ToCExtractor:
+    document_bytes: bytes
+
+    def __post_init__(self):
+        self.fitz_content = fitz.open(stream=self.document_bytes, filetype="pdf")
+        self.page_count = self.fitz_content.page_count
+
+    def extract(self):
+        toc = self.fitz_content.get_toc()
         if toc:
-            logger.debug(f" TOC {toc}.")
+            logger.debug(f" TOC identified from fitz: {toc}.")
             return self._toc_list_to_json(toc)
 
-        toc_text, toc_page_num = self._extract_possible_starting_toc(self.fitz_doc)
+        toc_text, toc_page_num = self._extract_possible_starting_toc(self.fitz_content)
         logger.debug(f"Possible TOC at page: {toc_page_num}")
         return self._validate_with_llm(toc_text, toc_page_num)
 
@@ -224,8 +368,8 @@ class DocumentExtractor:
     def get_first_n_pages_as_base64_images(self, n: int = 5) -> list:
         images_base64 = []
 
-        for page_number in range(min(n, len(self.fitz_doc))):
-            page = self.fitz_doc.load_page(page_number)
+        for page_number in range(min(n, len(self.fitz_content))):
+            page = self.fitz_content.load_page(page_number)
             pix = page.get_pixmap(dpi=150)  
 
             image_bytes = pix.tobytes("png")
@@ -383,284 +527,103 @@ class DocumentExtractor:
         
         return line.strip()
 
-    def _normalize_for_comparison(self, text: str) -> str:
-        """
-        Normalize text for duplicate detection
-        """
-        # Remove punctuation and convert to lowercase
-        normalized = re.sub(r'[^\w\s]', '', text.lower())
-        # Remove extra spaces
-        normalized = re.sub(r'\s+', ' ', normalized.strip())
-        return normalized
+@dataclass
+class TablesExtractor:
+    document_bytes: bytes
 
-    def _process_page_images(self, doc, page, page_num: int) -> List[Dict]:
+    def __post_init__(self):
+        self.fitz_content = fitz.open(stream=self.document_bytes, filetype="pdf")
+
+    def extract(
+            self,
+            min_words_in_row: int = 1,
+            table_settings: Optional[Dict] = None,
+            save_tables_to_csv: bool = False,
+            ) -> Optional[List[pd.DataFrame]]:
             """
-            Process all images in a single page.
-
+            Estrae tutte le tabelle da un file PDF con opzioni avanzate.
+            
             Args:
-                doc: The PyMuPDF document object.
-                page: The page object.
-                page_num (int): The page number.
-
+                pdf_path: Percorso del file PDF
+                min_words_in_row: Numero minimo di celle non vuote per considerare valida una riga
+                table_settings: Impostazioni personalizzate per l'estrazione delle tabelle
+            
             Returns:
-                List[Dict]: A list of dictionaries containing image metadata.
+                Lista di DataFrame se output_format è "dataframe", altrimenti None
             """
-            page_images = []
-            loaded_page = doc.load_page(page_num)
-            page_dims = loaded_page.get_text("dict")
-            page_area = round(float(page_dims["width"]) * float(page_dims["height"]))
-
-            for img_idx, img_info in enumerate(
-                page.get_image_info(hashes=True, xrefs=True)
-            ):
-                image_data = self._extract_single_image(
-                    doc, img_info, page_num, img_idx, page_area, page
-                )
-                if image_data:
-                    page_images.append(image_data)
-
-            return page_images
-
-    def _extract_single_image(
-        self, doc, img_info, page_num: int, img_idx: int, page_area: float, page
-    ) -> Optional[Dict]:
-        """
-        Extract and process a single image if it meets criteria.
-
-        Args:
-            doc: The PyMuPDF document object.
-            img_info: The image information dictionary.
-            page_num (int): The page number.
-            img_idx (int): The image index.
-            page_area (float): The area of the page.
-            page: The page object.
-        """
-        try:
-            xref = img_info["xref"]
-            if xref == 0:
-                return None
-
-            base_image = doc.extract_image(xref)
-            if not base_image:
-                return None
-
-            if self._is_all_black(base_image["image"]):
-                return None
-
-            bbox = fitz.Rect(img_info["bbox"])
-            image_area = round(bbox.width * bbox.height)
-
-            # Skip images that don't meet size criteria
-            if not self._is_valid_image(image_area, page_area, page, bbox):
-                return None
-
-            return {
-                "raw_bytes": base_image["image"],
-                "base64_data": base64.b64encode(base_image["image"]).decode(),
-                "filename": f"page{page_num}_img{img_idx}.{base_image['ext']}",
-                "format": base_image["ext"],
-                "page_number": page_num,
-                "size": f"{base_image['width']}x{base_image['height']}"
-           }
-
-
-        except Exception as e:
-            logger.error(
-                f"Error processing image {img_idx} on page {page_num}: {str(e)}"
-            )
-            return None
-    
-    def _is_all_black(self, img_bytes: bytes, threshold: float = 0.98) -> bool:
-        """
-        Check if an image is all black or mostly black.
-
-        Args:
-            img_bytes (bytes): The image content in bytes.
-            threshold (float): The threshold for determining if the image is black.
-
-        Returns:
-            True if the image is (mostly) black.
-        """
-        with Image.open(io.BytesIO(img_bytes)) as img:
-            img = img.convert("L")  # Convert to grayscale
-            pixels = list(img.getdata())
-            total_pixels = len(pixels)
-
-            black_pixels = sum(1 for p in pixels if p < 10)  # Tolerance for near-black
-            black_ratio = black_pixels / total_pixels
-
-            return black_ratio >= threshold
-
-    def _is_valid_image(
-        self,
-        image_area: int,
-        page_area: int,
-        page,
-        bbox: dict,
-        percentage_threshold: float = 0.05,
-        header_pct: float = 0.1,
-        footer_pct: float = 0.1,
-    ) -> bool:
-        """
-        Check if image area is greater than the threshold percentage of the page area
-        and is not in the header/footer zones.
-
-        Args:
-            image_area: Area of the image.
-            page_area: Area of the page.
-            page: The page object.
-            bbox: Bounding box of the image.
-            percentage_threshold: Percentage threshold for image size.
-            header_pct: Percentage of the page height for header zone.
-            footer_pct: Percentage of the page height for footer zone.
-
-        Returns:
-            True if the image is valid (size and position).
-        """
-        threshold = page_area * percentage_threshold
-        is_bigger_enough = image_area >= threshold
-
-        page_height = page.rect.height
-        header_limit = header_pct * page_height
-        footer_limit = (1 - footer_pct) * page_height
-
-        # TRUE if the image is NOT in header or footer
-        is_in_the_middle = bbox.y0 >= header_limit and bbox.y1 <= footer_limit
-
-        return is_bigger_enough and is_in_the_middle
-
-    def estimate_reading_time(self, text: str, wpm: int = 200) -> int:
-        """
-        Calculates the estimated reading time for a given text.
-        Args:
-            text (str): The input text to be processed.
-            wpm (int): Words per minute for reading speed. Default is 200.
-        Returns:
-            int: The estimated reading time in minutes.
-        """
-        if not text:
-            return 0
-        words = len(text.split())
-        reading_time = words / wpm
-        return max(1, round(reading_time))
-
-    def detect_language(self, text: str) -> str:
-        from langdetect import detect, DetectorFactory
-        DetectorFactory.seed = 0  # rende il risultato deterministico
-
-        full_text = text.replace("\n", " ").replace("\r", " ").strip()
-        if not full_text:
-            logger.warning("Empty text provided for language detection.")
-            return "???"
-        
-        mapping = {
-            "en": "INGLESE",
-            "it": "ITALIANO",
-            "fr": "FRANCESE",
-            "es": "SPAGNOLO",
-            "de": "TEDESCO",
-            "pt": "PORTOGHESE",
-        }
-        try:
-            lang_code = detect(full_text)
-            language = mapping.get(lang_code, "ALTRO")
-            logger.debug(f"Detected language: {language} ({lang_code})")
-            return language
-        except Exception as e:
-            logger.error(f"Error detecting language: {e}")
-            return "???"
-
-    def extract_tables(
-        self,
-        doc_bytes: bytes,
-        min_words_in_row: int = 1,
-        table_settings: Optional[Dict] = None,
-        save_tables_to_csv: bool = False,
-    ) -> Optional[List[pd.DataFrame]]:
-        """
-        Estrae tutte le tabelle da un file PDF con opzioni avanzate.
-        
-        Args:
-            pdf_path: Percorso del file PDF
-            min_words_in_row: Numero minimo di celle non vuote per considerare valida una riga
-            table_settings: Impostazioni personalizzate per l'estrazione delle tabelle
-        
-        Returns:
-            Lista di DataFrame se output_format è "dataframe", altrimenti None
-        """
 
         
-        # Impostazioni default per l'estrazione delle tabelle
-        default_table_settings = {
-            "vertical_strategy": "lines",
-            "horizontal_strategy": "lines",
-            "snap_tolerance": 3,
-            "snap_x_tolerance": 3,
-            "snap_y_tolerance": 3,
-            "join_tolerance": 3,
-            "edge_min_length": 3,
-            "min_words_vertical": 3,
-            "min_words_horizontal": 3,
-            "intersection_tolerance": 3,
-            "text_tolerance": 3,
-            "text_x_tolerance": 3,
-            "text_y_tolerance": 3,
-        }
-        
-        if table_settings:
-            default_table_settings.update(table_settings)
-        
-        all_dataframes = []
-        all_jsons = []
-        total_tables = 0
-        
-        try:
-            pdf_source = io.BytesIO(doc_bytes)  # Wrappa i bytes in BytesIO
-            logger.info(f"Elaborazione PDF da bytes ({len(doc_bytes)} bytes)")
-            with pdfplumber.open(pdf_source) as pdf:
-                
-                logger.info(f"Elaborazione PDF da bytes ({len(pdf.pages)} pagine)")
-                for page_num, page in enumerate(pdf.pages, 1):
+            # Impostazioni default per l'estrazione delle tabelle
+            default_table_settings = {
+                "vertical_strategy": "lines",
+                "horizontal_strategy": "lines",
+                "snap_tolerance": 3,
+                "snap_x_tolerance": 3,
+                "snap_y_tolerance": 3,
+                "join_tolerance": 3,
+                "edge_min_length": 3,
+                "min_words_vertical": 3,
+                "min_words_horizontal": 3,
+                "intersection_tolerance": 3,
+                "text_tolerance": 3,
+                "text_x_tolerance": 3,
+                "text_y_tolerance": 3,
+            }
+            
+            if table_settings:
+                default_table_settings.update(table_settings)
+            
+            all_dataframes = []
+            all_jsons = []
+            total_tables = 0
+            
+            try:
+                pdf_source = io.BytesIO(self.document_bytes)  # Wrappa i bytes in BytesIO
+                logger.info(f"Elaborazione PDF da bytes ({len(self.document_bytes)} bytes)")
+                with pdfplumber.open(pdf_source) as pdf:
                     
-                    # Estrai tabelle con impostazioni personalizzate
-                    tables = page.extract_tables(table_settings=default_table_settings)
-                    
-                    if not tables:
-                        continue
-                    
-                    for table_num, table in enumerate(tables, 1):
-                        total_tables += 1
+                    logger.info(f"Elaborazione PDF da bytes ({len(pdf.pages)} pagine)")
+                    for page_num, page in enumerate(pdf.pages, 1):
                         
-                        # Filtra righe vuote e pulisci i dati
-                        cleaned_table = self.clean_table_data(table, min_words_in_row)
+                        # Estrai tabelle con impostazioni personalizzate
+                        tables = page.extract_tables(table_settings=default_table_settings)
                         
-                        if not cleaned_table:
-                            logger.warning(f"Tabella {table_num} nella pagina {page_num} è vuota dopo la pulizia")
+                        if not tables:
                             continue
                         
-                        # Crea DataFrame
-                        df = self.create_dataframe_from_table(cleaned_table)
-                        df_json = df.to_json(orient='records', force_ascii=False, indent=2)
-                        all_jsons.append({
-                            "table_id": f"pagina_{page_num}_tabella_{table_num}",
-                            "data": json.loads(df_json)
-                        })
-                        
-    
-                        all_dataframes.append(df)
-                        logger.info(f"Tabella {table_num} elaborata - Dimensioni: {df.shape}")
-                
-                logger.info(f"Elaborazione completata. Totale tabelle trovate: {total_tables}")    
-
-                if save_tables_to_csv:
-                    for i, df in enumerate(all_dataframes, 1):
-                        self.save_table(df, "csv", Path("data/tables_extracted"), "tables", table_id=f"table_{i}")
-                
-                return all_dataframes, all_jsons
+                        for table_num, table in enumerate(tables, 1):
+                            total_tables += 1
+                            
+                            # Filtra righe vuote e pulisci i dati
+                            cleaned_table = self.clean_table_data(table, min_words_in_row)
+                            
+                            if not cleaned_table:
+                                logger.warning(f"Tabella {table_num} nella pagina {page_num} è vuota dopo la pulizia")
+                                continue
+                            
+                            # Crea DataFrame
+                            df = self.create_dataframe_from_table(cleaned_table)
+                            df_json = df.to_json(orient='records', force_ascii=False, indent=2)
+                            all_jsons.append({
+                                "table_id": f"pagina_{page_num}_tabella_{table_num}",
+                                "data": json.loads(df_json)
+                            })
+                            
+        
+                            all_dataframes.append(df)
+                            logger.info(f"Tabella {table_num} elaborata - Dimensioni: {df.shape}")
                     
-        except Exception as e:
-            logger.error(f"Errore durante l'elaborazione del PDF: {str(e)}")
-            return None
+                    logger.info(f"Elaborazione completata. Totale tabelle trovate: {total_tables}")    
+
+                    if save_tables_to_csv:
+                        for i, df in enumerate(all_dataframes, 1):
+                            self.save_table(df, "csv", Path("data/tables_extracted"), "tables", table_id=f"table_{i}")
+                    
+                    return all_dataframes, all_jsons
+                        
+            except Exception as e:
+                logger.error(f"Errore durante l'elaborazione del PDF: {str(e)}")
+                return None
 
     def is_table_significant(self, table, min_table_length=4, min_non_empty_cells=5):
         if len(table) < min_table_length:
@@ -832,3 +795,183 @@ class DocumentExtractor:
             logging.info(f"Tabella salvata: {filepath}")
         except Exception as e:
             logging.error(f"Errore nel salvataggio di {filepath}: {str(e)}")
+
+
+@dataclass
+class OtherInfoExtractor:
+
+    documents: [Document]
+    document_bytes: bytes
+
+
+    def __post_init__(self):
+        full_text = ""
+        for doc in self.documents:
+            full_text += doc.page_content
+
+        self.text : str = full_text
+        self.fitz_content = fitz.open(stream=self.document_bytes, filetype="pdf")
+
+    def extract(self):
+        return {
+            "reading_time": self._estimate_reading_time(text=self.text),
+            "detected_language": self._detect_language(text=self.text),
+            "words_count": self._get_words_count(text=self.text),
+            "page_count": self.fitz_content.page_count,
+            "most_common_words": self._get_most_common_words(text=self.text, top_n=10)
+        }
+
+    def _estimate_reading_time(self, text: str, wpm: int = 200) -> int:
+        """
+        Calculates the estimated reading time for a given text.
+        Args:
+            text (str): The input text to be processed.
+            wpm (int): Words per minute for reading speed. Default is 200.
+        Returns:
+            int: The estimated reading time in minutes.
+        """
+        if not text:
+            return 0
+        words = len(text.split())
+        reading_time = words / wpm
+        return max(1, round(reading_time))
+
+    def _detect_language(self, text: str) -> str:
+
+        from langdetect import detect, DetectorFactory
+        DetectorFactory.seed = 0  # rende il risultato deterministico
+
+        full_text = text.replace("\n", " ").replace("\r", " ").strip()
+        if not full_text:
+            logger.warning("Empty text provided for language detection.")
+            return "???"
+        
+        mapping = {
+            "en": "INGLESE",
+            "it": "ITALIANO",
+            "fr": "FRANCESE",
+            "es": "SPAGNOLO",
+            "de": "TEDESCO",
+            "pt": "PORTOGHESE",
+        }
+        try:
+            lang_code = detect(full_text)
+            language = mapping.get(lang_code, "ALTRO")
+            logger.debug(f"Detected language: {language} ({lang_code})")
+            return language
+        except Exception as e:
+            logger.error(f"Error detecting language: {e}")
+            return "???"
+    
+    def _get_words_count(self, text: str) -> int:
+        """
+        Counts the number of words in a given text.
+
+        Args:
+            text (str): The input text to be processed.
+
+        Returns:
+            int: The number of words in the text.
+        """
+        if not text:
+            return 0
+        words = text.split()
+        return len(words)
+
+    def _get_most_common_words(self, text: str, top_n: int = 10) -> List[Dict[str, Union[str, int]]]:
+        """
+        Extracts the most common words from a given text.
+
+        Args:
+            text (str): The input text to be processed.
+            top_n (int): Number of most common words to return. Default is 10.
+
+        Returns:
+            List[Dict[str, Union[str, int]]]: List of dictionaries containing word and count.
+        """
+        if not text:
+            return []
+        
+        # Clean and normalize text
+        cleaned_text = re.sub(r'[^\w\s]', ' ', text.lower())
+        words = cleaned_text.split()
+        
+        # Remove common stop words (basic list)
+        stop_words = {
+            'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
+            'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
+            'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might',
+            'this', 'that', 'these', 'those', 'i', 'you', 'he', 'she', 'it', 'we', 'they',
+            'me', 'him', 'her', 'us', 'them', 'my', 'your', 'his', 'her', 'its', 'our', 'their',
+            # Italian stop words
+            'il', 'la', 'le', 'lo', 'gli', 'un', 'una', 'uno', 'e', 'o', 'ma', 'in', 'su', 'per',
+            'di', 'da', 'con', 'tra', 'fra', 'del', 'della', 'delle', 'dello', 'degli', 'dei',
+            'che', 'chi', 'come', 'quando', 'dove', 'perché', 'se', 'è', 'sono', 'siamo', 'siete',
+            'era', 'erano', 'eravamo', 'eravate', 'essere', 'avere', 'ho', 'hai', 'ha', 'abbiamo',
+            'avete', 'hanno', 'questo', 'questa', 'questi', 'queste', 'quello', 'quella', 'quelli',
+            'quelle', 'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro', 'mi', 'ti', 'ci', 'vi', 'si'
+        }
+        
+        # Filter out stop words and words shorter than 3 characters
+        filtered_words = [word for word in words if word not in stop_words and len(word) >= 3]
+        
+        # Count word frequencies
+        word_counts = Counter(filtered_words)
+        
+        # Get top N most common words
+        most_common = word_counts.most_common(top_n)
+        
+        # Format as list of dictionaries
+        result = [{"word": word, "count": count} for word, count in most_common]
+        
+        logger.debug(f"Extracted {len(result)} most common words from text")
+        return result
+
+
+
+
+@dataclass
+class DocumentExtractor:
+    document_bytes: bytes
+
+    def extract(self,
+        extract_toc: bool = False,
+        extract_images: bool = False,
+        extract_tables: bool = False,
+        extract_others: bool = False
+        ):
+
+        results = {}
+    
+        documents = TextExtractor(
+            document_bytes=self.document_bytes).extract()
+        results['chunks'] = documents
+
+        if extract_toc:
+            toc = ToCExtractor(
+                document_bytes=self.document_bytes).extract()
+            results['toc'] = toc
+
+        if extract_images:
+            images = ImageExtractor(
+                document_bytes=self.document_bytes).extract()
+            results['images'] = images
+        
+        if extract_tables:
+            tables = TablesExtractor(
+                document_bytes=self.document_bytes).extract()
+            results['tables'] = tables
+
+        if extract_others:
+            other_info = OtherInfoExtractor(
+                documents=documents,
+                document_bytes=self.document_bytes).extract()
+            results['other_info'] = other_info
+
+
+        return results
+
+
+
+
+
