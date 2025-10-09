@@ -28,8 +28,6 @@ class DocumentHandler(Protocol):
     def extract(self) -> None:
         ...
 
-
-
 @dataclass
 class ImageExtractor:
     document_bytes: bytes
@@ -579,9 +577,9 @@ class TablesExtractor:
             
             try:
                 pdf_source = io.BytesIO(self.document_bytes)  # Wrappa i bytes in BytesIO
-                logger.info(f"Elaborazione PDF da bytes ({len(self.document_bytes)} bytes)")
+                logger.info(f"Elaborazione di ({len(self.document_bytes)} pagine)")
                 with pdfplumber.open(pdf_source) as pdf:
-                    
+
                     logger.info(f"Elaborazione PDF da bytes ({len(pdf.pages)} pagine)")
                     for page_num, page in enumerate(pdf.pages, 1):
                         
@@ -792,7 +790,7 @@ class TablesExtractor:
             elif format_type == "json":
                 df.to_json(filepath, orient='records', indent=2, force_ascii=False)
             
-            logging.info(f"Tabella salvata: {filepath}")
+            logger.info(f"Tabella salvata: {filepath}")
         except Exception as e:
             logging.error(f"Errore nel salvataggio di {filepath}: {str(e)}")
 
@@ -818,7 +816,7 @@ class OtherInfoExtractor:
             "detected_language": self._detect_language(text=self.text),
             "words_count": self._get_words_count(text=self.text),
             "page_count": self.fitz_content.page_count,
-            "most_common_words": self._get_most_common_words(text=self.text, top_n=10)
+            "most_common_words": self._get_most_common_words(text=self.text, top_n=9)
         }
 
     def _estimate_reading_time(self, text: str, wpm: int = 200) -> int:
@@ -860,7 +858,7 @@ class OtherInfoExtractor:
             logger.debug(f"Detected language: {language} ({lang_code})")
             return language
         except Exception as e:
-            logger.error(f"Error detecting language: {e}")
+            logging.error(f"Error detecting language: {e}")
             return "???"
     
     def _get_words_count(self, text: str) -> int:
@@ -878,7 +876,7 @@ class OtherInfoExtractor:
         words = text.split()
         return len(words)
 
-    def _get_most_common_words(self, text: str, top_n: int = 10) -> List[Dict[str, Union[str, int]]]:
+    def _get_most_common_words(self, text: str, top_n: int = 9) -> List[Dict[str, Union[str, int]]]:
         """
         Extracts the most common words from a given text.
 
@@ -897,7 +895,7 @@ class OtherInfoExtractor:
         words = cleaned_text.split()
         
         # Remove common stop words (basic list)
-        stop_words = {
+        stop_words = [
             'the', 'and', 'or', 'but', 'in', 'on', 'at', 'to', 'for', 'of', 'with', 'by',
             'a', 'an', 'is', 'are', 'was', 'were', 'be', 'been', 'being', 'have', 'has', 'had',
             'do', 'does', 'did', 'will', 'would', 'should', 'could', 'can', 'may', 'might',
@@ -910,7 +908,7 @@ class OtherInfoExtractor:
             'era', 'erano', 'eravamo', 'eravate', 'essere', 'avere', 'ho', 'hai', 'ha', 'abbiamo',
             'avete', 'hanno', 'questo', 'questa', 'questi', 'queste', 'quello', 'quella', 'quelli',
             'quelle', 'io', 'tu', 'lui', 'lei', 'noi', 'voi', 'loro', 'mi', 'ti', 'ci', 'vi', 'si'
-        }
+        ]
         
         # Filter out stop words and words shorter than 3 characters
         filtered_words = [word for word in words if word not in stop_words and len(word) >= 3]

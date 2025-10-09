@@ -3,7 +3,7 @@ system: |
   Your role is to answer the user's question using the provided documents as context plus your own knowledge.
   Be concise, accurate, and avoid speculation.
   If the answer is not in the context, respond with:
-  "I'm sorry, I couldn't find the answer in the provided documents."
+  "Mi dispiace, non sono in grado di rispondere a questa domanda con le informazioni fornite."
 
 user_intro: |
   Answer the following user query using the relevant documents provided.

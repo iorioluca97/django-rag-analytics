@@ -109,9 +109,11 @@ def index_mongodb_thread(chunks, document: Document) -> Dict[str, Any]:
     if not os.getenv("MONGO_URI"):
         logger.warning("Thread 4: MONGO_URI is not set, skipping indexing.")
         return {'mongodb_indexed': False, 'error': 'MONGO_URI not set'}
-    
+    logger.debug(f"Thread 4: MONGO_URI is set.")
     try:
-        db = MongoDb(collection_name=document.title)
+        db = MongoDb(
+            collection_name=document.title,
+            recreate_collection= False)
         db.index_chunks(chunks, document)
         logger.debug(f"Thread 4: Successfully indexed {len(chunks)} chunks")
         return {'mongodb_indexed': True, 'chunks_count': len(chunks)}
@@ -309,7 +311,7 @@ def analyze_document(request, doc_id):
                 'metadata': executor.submit(extract_metadata_thread, doc_extractor, full_text),
                 'images': executor.submit(extract_images_thread, doc_extractor, doc),
                 #TODO: Fix mongo connection
-                # 'mongodb': executor.submit(index_mongodb_thread, content_result['chunks'], doc)
+                'mongodb': executor.submit(index_mongodb_thread, content_result['chunks'], doc)
             }
             
             # Collect results as they complete
@@ -349,29 +351,14 @@ def analyze_document(request, doc_id):
         chunks = content_result.get('chunks', [])
         full_text = content_result.get('full_text', '')
         jsons_extracted = content_result.get('tables_json', [])
-        
         language = metadata_result.get('language', 'unknown')
         reading_time = metadata_result.get('reading_time', 0)
         words_count = metadata_result.get('words_count', 0)
         page_numbers = metadata_result.get('page_count', 0)
         most_common_words = metadata_result.get('most_common_words', [])
-        
         images_extracted = images_result.get('images', [])
-        images_count = images_result.get('images_count', 0)
+        images_count = images_result.get('images_count', 0)        
 
-
-
-        logger.debug(f"Final extracted data - TOC items: {len(toc)}, Chunks: {len(chunks)}, Tables: {len(jsons_extracted)}, Images: {images_count}, Language: {language}, Words: {words_count}, Reading time: {reading_time }min, Pages: {page_numbers}")
-        
-        logger.debug(f"TOC: {toc}")
-        logger.debug(f"Tables JSON: {jsons_extracted}")
-        logger.debug(f"Images extracted: {images_extracted}")
-        logger.debug(f"MongoDB Result: {mongodb_result}")
-        logger.debug(f"Chunks sample: {[chunk.page_content[:100] for chunk in chunks[:3]]}")  # Log first 100 chars of first 3 chunks
-        logger.debug(f"Full text sample: {full_text[:500]}...")  # Log first 500 chars of full text
-        logger.debug(f"Document metadata - Title: {doc.title}, Size: {doc.size}, Uploaded at: {doc.uploaded_at}, Uploaded by: {doc.uploaded_by}")
-        
-        
         # Save analytics to the database
         analytics = DocumentAnalytics(
             document=doc,
@@ -384,7 +371,6 @@ def analyze_document(request, doc_id):
             images_extracted_count=images_count
         )
         analytics.save()
-        logger.info(f"Saved analytics for document ID: {doc.id}, Title: {doc.title}")
 
         # Log MongoDB indexing results
         if mongodb_result.get('mongodb_indexed'):

@@ -9,7 +9,7 @@ from pymongo.server_api import ServerApi
 from langchain_core.documents import Document
 
 from .logger import logger
-from .mongodb_config import create_mongodb_client, test_mongodb_connection
+from .mongodb_config import create_mongodb_client, test_mongodb_connection, RECREATE_COLLECTION
 from dotenv import load_dotenv, set_key, dotenv_values
 # Load environment variables
 load_dotenv()
@@ -20,7 +20,7 @@ class MongoDb:
         uri: str = os.getenv("MONGO_URI"),
         database_name: str = "django_rag_analytics",
         collection_name: str = "mycollection",
-        recreate_collection: bool = False,
+        recreate_collection: bool = RECREATE_COLLECTION,
     ):      
         if not uri:
             raise ValueError("MongoDB URI is not set in environment variables")

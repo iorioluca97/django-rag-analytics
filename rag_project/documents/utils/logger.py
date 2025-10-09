@@ -5,7 +5,7 @@ import coloredlogs
 APPLICATION_NAME = "DJANGO-RAG-ANALYTICS"
 
 logger = logging.getLogger(APPLICATION_NAME)
-logger.setLevel(logging.DEBUG)
+logger.setLevel(logging.INFO)
 console_handler = logging.StreamHandler()
 console_handler.setFormatter(
     logging.Formatter(

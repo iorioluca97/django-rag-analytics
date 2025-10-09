@@ -8,6 +8,9 @@ from pymongo.mongo_client import MongoClient
 from pymongo.server_api import ServerApi
 from .logger import logger
 
+
+RECREATE_COLLECTION = True
+
 def create_mongodb_client(uri: str, **kwargs):
     """
     Crea un client MongoDB con configurazioni SSL robuste
